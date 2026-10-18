@@ -1,0 +1,5 @@
+---
+import { getCurrentSession } from '../lib/auth.js';
+const current = await getCurrentSession(Astro);
+return Astro.redirect(current?.admin ? '/admin' : current?.client ? '/dashboard' : '/login');
+---

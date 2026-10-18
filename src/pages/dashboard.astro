@@ -1,0 +1,61 @@
+---
+import Base from '../layouts/Base.astro';
+import { env } from 'cloudflare:workers';
+import { appConfig } from '../lib/config.js';
+import { listTicketsForClient, isClosed } from '../lib/db.js';
+import { clientStatusLabel, fmtDateTime, timeAgo } from '../lib/render.js';
+
+const client = Astro.locals.client;
+const config = appConfig(env);
+const tickets = await listTicketsForClient(env.DB, client.id);
+const open = tickets.filter((ticket) => !isClosed(ticket));
+const closed = tickets.filter(isClosed);
+const timeZone = client.time_zone || config.timeZone;
+const greeting = String(client.name || '').trim().split(/\s+/)[0];
+---
+<Base title="Your requests">
+  <div class="page-head">
+    <div>
+      <h1>{greeting ? `Hi ${greeting}.` : 'Your requests'}</h1>
+      <p class="lead" style="margin:0;">Send a change or a question. Every reply stays with its request.</p>
+    </div>
+    <a class="btn btn-accent" href="/tickets/new">New request</a>
+  </div>
+
+  {open.length > 0 ? (
+    <div class="rows">
+      {open.map((ticket) => (
+        <a class="row" href={`/tickets/${encodeURIComponent(ticket.ref)}`}>
+          <div class="row-main">
+            <div class="ref">{ticket.ref}</div>
+            <div class="title">{ticket.title}</div>
+            <div class="sub">Sent {fmtDateTime(ticket.created_at, timeZone)}</div>
+          </div>
+          <div class="meta">
+            <span>Updated {timeAgo(ticket.updated_at)}</span>
+            <span class:list={['pill', ticket.status]}>{clientStatusLabel(ticket, config.ownerName)}</span>
+          </div>
+        </a>
+      ))}
+    </div>
+  ) : (
+    <div class="rows"><p class="empty">No open requests. Anything you send appears here.</p></div>
+  )}
+
+  {closed.length > 0 && (
+    <details class="fold">
+      <summary>Finished ({closed.length})</summary>
+      <div class="rows">
+        {closed.map((ticket) => (
+          <a class="row" href={`/tickets/${encodeURIComponent(ticket.ref)}`}>
+            <div class="row-main">
+              <div class="ref">{ticket.ref}</div>
+              <div class="title">{ticket.title}</div>
+            </div>
+            <div class="meta"><span>{clientStatusLabel(ticket, config.ownerName)} {timeAgo(ticket.resolved_at || ticket.updated_at)}</span></div>
+          </a>
+        ))}
+      </div>
+    </details>
+  )}
+</Base>

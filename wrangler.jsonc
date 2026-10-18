@@ -1,0 +1,58 @@
+// Support desk Worker. Replace every YOUR_ value before your first deploy.
+// docs/SETUP.md walks through each one.
+{
+  "name": "support-desk",
+  "main": "./src/worker.js",
+  "compatibility_date": "2026-06-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [
+    { "pattern": "support.YOUR_DOMAIN.com", "custom_domain": true }
+  ],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "support-desk",
+      "database_id": "YOUR_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "support-desk-uploads"
+    }
+  ],
+  "vars": {
+    // Shown in the header, emails and page titles.
+    "BUSINESS_NAME": "Your Business",
+    // The person clients see answering: "With Kyle", "Kyle replied".
+    "OWNER_NAME": "Kyle",
+    // New requests and client replies are emailed here.
+    "OWNER_EMAIL": "you@YOUR_DOMAIN.com",
+    // Comma-separated. These addresses sign in to /admin instead of the client view.
+    "ADMIN_EMAILS": "you@YOUR_DOMAIN.com",
+    // Must be on a domain verified in Resend.
+    "EMAIL_FROM": "Your Business <support@YOUR_DOMAIN.com>",
+    "EMAIL_NO_REPLY": "no-reply@YOUR_DOMAIN.com",
+    // IANA time zone used when a client has none set.
+    "DEFAULT_TIME_ZONE": "America/Chicago",
+    // Ticket references look like SUP-2026-0001.
+    "TICKET_PREFIX": "SUP",
+    // Optional public Turnstile key. Leave empty to turn verification off.
+    "TURNSTILE_SITE_KEY": "",
+    // AI reply drafts run when the ANTHROPIC_API_KEY secret is set. "off" turns them off.
+    "AI_DRAFTS": "on",
+    // Leave empty for the default model (claude-opus-5-5).
+    "AI_MODEL": ""
+  },
+  // Secrets (wrangler secret put NAME): RESEND_API_KEY, RESEND_WEBHOOK_SECRET,
+  // ANTHROPIC_API_KEY for AI drafts, AGENT_TOKEN (32+ random characters) for the
+  // agent API, and TURNSTILE_SECRET when TURNSTILE_SITE_KEY is set.
+  "observability": {
+    "enabled": true
+  }
+}

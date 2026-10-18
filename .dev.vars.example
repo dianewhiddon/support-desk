@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local development. Never commit .dev.vars.
+# Without RESEND_API_KEY, emails are not sent; sign-in links print to the
+# terminal running `npm run dev` instead.
+RESEND_API_KEY=
+RESEND_WEBHOOK_SECRET=
+TURNSTILE_SECRET=
+# Optional: turns on AI reply drafts locally.
+ANTHROPIC_API_KEY=
+# Optional: turns on the agent API (32+ random characters).
+AGENT_TOKEN=

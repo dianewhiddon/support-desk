@@ -1,0 +1,29 @@
+{
+  "name": "support-desk",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "test": "node --test",
+    "preview": "astro preview",
+    "db:local": "wrangler d1 migrations apply DB --local",
+    "db:seed": "wrangler d1 execute DB --local --file=scripts/seed-local.sql",
+    "astro": "astro",
+    "design:serve": "node scripts/design-serve.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
+    "@astrojs/cloudflare": "^14.2.1",
+    "astro": "^7.2.2",
+    "svix": "^1.76.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.123.0"
+  }
+}

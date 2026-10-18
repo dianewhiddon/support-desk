@@ -1,0 +1,103 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { env } from 'cloudflare:workers';
+import { appConfig } from '../../../lib/config.js';
+import { getClientById, listSitesForClient, listTicketsForClient } from '../../../lib/db.js';
+import { adminStatusLabel, fmtDateTime } from '../../../lib/render.js';
+
+const config = appConfig(env);
+const id = Number(Astro.params.id);
+const client = Number.isInteger(id) ? await getClientById(env.DB, id) : null;
+if (!client) return Astro.redirect('/admin/clients');
+const [sites, tickets] = await Promise.all([
+  listSitesForClient(env.DB, client.id, { includeInactive: true }),
+  listTicketsForClient(env.DB, client.id),
+]);
+const params = Astro.url.searchParams;
+const saved = params.get('saved');
+const error = params.get('error');
+const NOTES_PROMPT = [
+  'What they do and who they serve',
+  'Their offers and prices',
+  'How they write and the words they use',
+  'How their site is built and what you usually change',
+  'What you built for them, decisions you made together, anything sensitive',
+  'How they like to be spoken to',
+].join('\n');
+const ERRORS = { email: 'Enter a valid email address.', exists: 'Another client already uses that email.', site: 'Add a label or a web address that starts with https://.', timezone: 'Use a time zone name such as America/New_York.' };
+---
+<Base title={client.name || client.email}>
+  <a class="crumb" href="/admin/clients">← Clients</a>
+  <h1>{client.name || client.email}</h1>
+  {saved && <div class="notice ok" role="status">Saved.</div>}
+  {error && <div class="notice err" role="alert">{ERRORS[error] || 'That was not saved.'}</div>}
+
+  <div class="split">
+    <div>
+      <section class="card" aria-labelledby="requests-heading">
+        <h2 id="requests-heading">Requests</h2>
+        {tickets.length ? (
+          <div class="rows">
+            {tickets.map((ticket) => (
+              <a class="row" href={`/admin/tickets/${encodeURIComponent(ticket.ref)}`}>
+                <div class="row-main"><div class="ref">{ticket.ref}</div><div class="title">{ticket.title}</div><div class="sub">{fmtDateTime(ticket.created_at, config.timeZone)}</div></div>
+                <div class="meta"><span class:list={['pill', ticket.status]}>{adminStatusLabel(ticket)}</span></div>
+              </a>
+            ))}
+          </div>
+        ) : <p class="muted">No requests yet.</p>}
+      </section>
+
+      <section class="card" aria-labelledby="notes-heading">
+        <h2 id="notes-heading">Client notes for AI drafts</h2>
+        <p class="hint" style="margin-top:0;">Read by every AI draft for this client and returned to your agent. Clients never see them.</p>
+        <form method="POST" action={`/api/admin/clients/${client.id}`}>
+          <input type="hidden" name="action" value="ai_notes" />
+          <div class="field">
+            <label for="ai_notes">About {client.name || 'this client'}</label>
+            <textarea id="ai_notes" name="ai_notes" rows="12" maxlength="20000" placeholder={NOTES_PROMPT}>{client.ai_notes || ''}</textarea>
+          </div>
+          <button class="btn" type="submit">Save notes</button>
+        </form>
+      </section>
+
+      <section class="card" aria-labelledby="sites-heading">
+        <h2 id="sites-heading">Websites</h2>
+        <p class="hint" style="margin-top:0;">With two or more active sites, the request form asks which one. One site is chosen automatically.</p>
+        {sites.map((site) => (
+          <form method="POST" action={`/api/admin/clients/${client.id}`} class="row" style="border:1px solid var(--line-soft);margin-top:8px;">
+            <input type="hidden" name="action" value="toggle_site" />
+            <input type="hidden" name="site_id" value={site.id} />
+            <input type="hidden" name="active" value={site.active ? '0' : '1'} />
+            <div class="row-main"><div class="title">{site.label || site.url}</div>{site.label && site.url && <div class="sub">{site.url}</div>}</div>
+            <div class="meta">{!site.active && <span>Inactive</span>}<button class="btn btn-ghost" type="submit">{site.active ? 'Deactivate' : 'Activate'}</button></div>
+          </form>
+        ))}
+        <form method="POST" action={`/api/admin/clients/${client.id}`} style="margin-top:14px;">
+          <input type="hidden" name="action" value="add_site" />
+          <div class="split" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
+            <div class="field"><label for="site-label">Label</label><input id="site-label" name="label" type="text" maxlength="120" placeholder="Main website" /></div>
+            <div class="field"><label for="site-url">Address</label><input id="site-url" name="url" type="url" placeholder="https://" /></div>
+          </div>
+          <button class="btn btn-ghost" type="submit">Add website</button>
+        </form>
+      </section>
+    </div>
+
+    <aside class="side">
+      <section class="card" aria-labelledby="details-heading">
+        <h2 id="details-heading">Details</h2>
+        <form method="POST" action={`/api/admin/clients/${client.id}`}>
+          <input type="hidden" name="action" value="update" />
+          <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required value={client.email} /></div>
+          <div class="field"><label for="name">Name</label><input id="name" name="name" type="text" maxlength="120" value={client.name || ''} /></div>
+          <div class="field"><label for="company">Company</label><input id="company" name="company" type="text" maxlength="160" value={client.company || ''} /></div>
+          <div class="field"><label for="time_zone">Time zone</label><input id="time_zone" name="time_zone" type="text" maxlength="64" value={client.time_zone || ''} placeholder={config.timeZone} /></div>
+          <div class="field"><label class="check"><input type="checkbox" name="active" value="1" checked={!!client.active} /> Can sign in</label></div>
+          <button class="btn" type="submit">Save</button>
+          <p class="hint">Turning off sign-in ends their sessions on their next page load. Their requests stay.</p>
+        </form>
+      </section>
+    </aside>
+  </div>
+</Base>

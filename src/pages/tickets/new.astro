@@ -1,0 +1,97 @@
+---
+import Base from '../../layouts/Base.astro';
+import MessageFields from '../../components/MessageFields.astro';
+import { env } from 'cloudflare:workers';
+import { appConfig } from '../../lib/config.js';
+import { listSitesForClient } from '../../lib/db.js';
+
+const client = Astro.locals.client;
+const config = appConfig(env);
+const sites = await listSitesForClient(env.DB, client.id);
+const preselect = Astro.url.searchParams.get('type') === 'question' ? 'question' : 'change';
+const errors = {
+  too_many: 'Attach no more than six files.',
+  too_large: 'That is too much to upload. Keep each file under 15 MB and all files under 45 MB together.',
+  attachments: 'One or more files could not be accepted. Attach images, PDFs, audio, Word, Markdown or text files.',
+  too_long: 'Your message is over 12,000 characters. Shorten it or attach it as a file.',
+  empty: 'Write your request or attach a voice note.',
+};
+const errorCode = Astro.url.searchParams.get('err');
+const error = errorCode ? errors[errorCode] || 'Your request was not sent. Your words are saved in this browser, so check the form and try again. Reattach any files.' : '';
+---
+<Base title="New request">
+  <a class="crumb" href="/dashboard">← Your requests</a>
+  <h1>How can we help?</h1>
+  {error && <div class="notice err" role="alert">{error}</div>}
+
+  <form id="request-form" method="POST" action="/api/tickets" enctype="multipart/form-data" data-draft-key={`desk-new-request-${client.id}`}>
+    <input type="hidden" name="submission_key" value={crypto.randomUUID()} />
+    <div class="type-cards" role="radiogroup" aria-label="What kind of request is this?">
+      <label class="type-card"><input type="radio" name="type" value="change" checked={preselect === 'change'} required /><span class="type-name">A change or fix</span><span class="type-desc">Edits, new content, or something that is not working.</span></label>
+      <label class="type-card"><input type="radio" name="type" value="question" checked={preselect === 'question'} /><span class="type-name">A question</span><span class="type-desc">Ask {config.ownerName} anything about your project.</span></label>
+    </div>
+
+    <div class="card composer" style="margin-top:16px;">
+      {sites.length > 1 && <div class="field" data-for="change"><label for="site_id">Which site?</label><select id="site_id" name="site_id">{sites.map((site) => <option value={site.id}>{site.label || site.url}</option>)}</select></div>}
+      <div class="field" data-for="change"><label for="page">Which page? <span class="muted">(optional)</span></label><input id="page" name="page" type="text" maxlength="200" placeholder="Home, About, Services…" /></div>
+      <div class="field" data-for="change"><label class="check"><input type="checkbox" name="emergency" value="1" /> This is urgent: something is broken right now</label></div>
+      <div class="field">
+        <label for="body" id="body-label">What needs to change?</label>
+        <textarea id="body" name="body" required maxlength="12000" data-message-body></textarea>
+        <p class="hint" data-for="change">For new text, paste the exact wording. For a photo, attach it below.</p>
+      </div>
+      <MessageFields idPrefix="request" />
+      <div class="actions">
+        <button class="btn btn-accent" type="submit" id="request-submit">Send request</button>
+        <a class="btn btn-ghost" href="/dashboard">Finish later</a>
+      </div>
+      <p class="hint" id="submit-state" aria-live="polite"></p>
+    </div>
+  </form>
+</Base>
+
+<script>
+  const form = document.getElementById('request-form') as HTMLFormElement;
+  const body = document.getElementById('body') as HTMLTextAreaElement;
+  const bodyLabel = document.getElementById('body-label')!;
+  const submit = document.getElementById('request-submit') as HTMLButtonElement;
+  const state = document.getElementById('submit-state')!;
+  const draftKey = form.dataset.draftKey!;
+  const copy: Record<string, { label: string; placeholder: string; button: string }> = {
+    change: { label: 'What needs to change?', placeholder: "For example: on the About page, change 'Welcome' to 'Coaching for founders'.", button: 'Send request' },
+    question: { label: 'Your question', placeholder: 'Ask away.', button: 'Send question' },
+  };
+  const selected = () => (form.querySelector('input[name="type"]:checked') as HTMLInputElement | null)?.value || 'change';
+  function applyType() {
+    const type = selected();
+    form.querySelectorAll<HTMLElement>('[data-for]').forEach((element) => {
+      const active = element.dataset.for!.split(' ').includes(type);
+      element.hidden = !active;
+      element.querySelectorAll<HTMLInputElement>('input,select,textarea').forEach((control) => { control.disabled = !active; });
+    });
+    bodyLabel.textContent = copy[type].label;
+    body.placeholder = copy[type].placeholder;
+    submit.textContent = copy[type].button;
+  }
+
+  // Keep unsent words in this browser until the request is sent.
+  const saved = (() => { try { return JSON.parse(localStorage.getItem(draftKey) || '{}'); } catch { return {}; } })();
+  for (const name of ['body', 'page', 'links']) {
+    const control = form.elements.namedItem(name) as HTMLInputElement | null;
+    if (control && saved[name] && !control.value) control.value = saved[name];
+  }
+  const save = () => {
+    const value: Record<string, string> = {};
+    for (const name of ['body', 'page', 'links']) value[name] = (form.elements.namedItem(name) as HTMLInputElement | null)?.value || '';
+    try { localStorage.setItem(draftKey, JSON.stringify(value)); } catch { /* storage unavailable */ }
+  };
+  form.addEventListener('input', save);
+  form.addEventListener('change', (event) => { if ((event.target as HTMLInputElement).name === 'type') applyType(); });
+  form.addEventListener('submit', (event) => {
+    if (event.defaultPrevented) return;
+    submit.disabled = true;
+    submit.textContent = 'Sending…';
+    state.textContent = 'Uploading your files and saving your request. Keep this page open.';
+  });
+  applyType();
+</script>

@@ -1,0 +1,11 @@
+---
+import { consumeMagicAndLogin, safeNextPath } from '../../lib/auth.js';
+
+const kind = await consumeMagicAndLogin(Astro, Astro.params.token);
+const next = safeNextPath(Astro.url.searchParams.get('next'));
+if (!kind) return Astro.redirect(`/login?expired=1${next ? `&next=${encodeURIComponent(next)}` : ''}`);
+const home = kind === 'admin' ? '/admin' : '/dashboard';
+// An admin link never lands on a client page, or the reverse.
+const fits = next && (kind === 'admin' ? next.startsWith('/admin') : !next.startsWith('/admin'));
+return Astro.redirect(fits ? next : home);
+---

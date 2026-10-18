@@ -1,0 +1,90 @@
+---
+import Base from '../../layouts/Base.astro';
+import { env } from 'cloudflare:workers';
+import { appConfig } from '../../lib/config.js';
+import { listQueue } from '../../lib/db.js';
+import { adminStatusLabel, fmtDateTime, timeAgo } from '../../lib/render.js';
+
+const config = appConfig(env);
+const tickets = await listQueue(env.DB);
+const groups = [
+  { key: 'needs', label: 'Needs you', items: tickets.filter((t) => ['new', 'open'].includes(t.status)), empty: 'Nothing needs you right now.' },
+  { key: 'waiting', label: 'Waiting on client', items: tickets.filter((t) => t.status === 'waiting'), empty: 'No requests are waiting on a client.' },
+  { key: 'history', label: 'History', items: tickets.filter((t) => ['done', 'closed'].includes(t.status)), empty: 'Resolved and dismissed requests appear here.' },
+];
+const who = (ticket) => ticket.client_name || ticket.client_company || ticket.client_email;
+const searchText = (ticket) => [ticket.ref, ticket.title, ticket.body, ticket.client_name, ticket.client_company, ticket.client_email, ticket.site_label].filter(Boolean).join(' ').toLowerCase();
+---
+<Base title="Queue">
+  <div class="page-head">
+    <div>
+      <h1>Queue</h1>
+      <p class="lead" style="margin:0;">Urgent first, then oldest first.</p>
+    </div>
+    <a class="btn btn-ghost" href="/admin/clients">Add a client</a>
+  </div>
+
+  <div class="toolbar">
+    <label class="sr-only" for="queue-search">Search requests</label>
+    <input id="queue-search" type="search" placeholder="Search by client, reference or words" data-queue-search />
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Request groups">
+    {groups.map((group, index) => (
+      <button type="button" role="tab" id={`tab-${group.key}`} aria-controls={`panel-${group.key}`} aria-selected={index === 0 ? 'true' : 'false'} data-tab={group.key}>
+        {group.label} ({group.items.length})
+      </button>
+    ))}
+  </div>
+
+  {groups.map((group, index) => (
+    <section role="tabpanel" id={`panel-${group.key}`} aria-labelledby={`tab-${group.key}`} hidden={index !== 0} data-panel={group.key}>
+      <div class="rows">
+        {group.items.map((ticket) => (
+          <a class="row" href={`/admin/tickets/${encodeURIComponent(ticket.ref)}`} data-search={searchText(ticket)}>
+            <div class="row-main">
+              <div class="ref">{ticket.ref} · {who(ticket)}{ticket.site_label ? ` · ${ticket.site_label}` : ''}</div>
+              <div class="title">{ticket.title}</div>
+              <div class="sub">Sent {fmtDateTime(ticket.created_at, config.timeZone)}{ticket.has_draft ? (ticket.draft_source === 'ai' ? ' · AI draft ready' : ' · Draft reply saved') : ''}</div>
+            </div>
+            <div class="meta">
+              {ticket.type === 'urgent' && !['done', 'closed'].includes(ticket.status) && <span class="pill urgent">Urgent</span>}
+              {ticket.type === 'question' && <span class="pill">Question</span>}
+              <span>{timeAgo(group.key === 'history' ? (ticket.resolved_at || ticket.updated_at) : ticket.created_at)}</span>
+              <span class:list={['pill', ticket.status]}>{adminStatusLabel(ticket)}</span>
+            </div>
+          </a>
+        ))}
+        <p class="empty" data-empty hidden={group.items.length > 0}>{group.items.length ? 'No requests match your search.' : group.empty}</p>
+      </div>
+    </section>
+  ))}
+</Base>
+
+<script>
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-tab]'));
+  const panels = Array.from(document.querySelectorAll<HTMLElement>('[data-panel]'));
+  const select = (key: string) => {
+    tabs.forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.tab === key)));
+    panels.forEach((panel) => { panel.hidden = panel.dataset.panel !== key; });
+    try { sessionStorage.setItem('desk-queue-tab', key); } catch { /* storage unavailable */ }
+  };
+  tabs.forEach((tab) => tab.addEventListener('click', () => select(tab.dataset.tab!)));
+  try { const saved = sessionStorage.getItem('desk-queue-tab'); if (saved && tabs.some((t) => t.dataset.tab === saved)) select(saved); } catch { /* storage unavailable */ }
+
+  const search = document.querySelector<HTMLInputElement>('[data-queue-search]')!;
+  search.addEventListener('input', () => {
+    const terms = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    panels.forEach((panel) => {
+      const rows = Array.from(panel.querySelectorAll<HTMLElement>('[data-search]'));
+      let shown = 0;
+      rows.forEach((row) => {
+        const match = terms.every((term) => row.dataset.search!.includes(term));
+        row.hidden = !match;
+        if (match) shown += 1;
+      });
+      const empty = panel.querySelector<HTMLElement>('[data-empty]');
+      if (empty && rows.length) empty.hidden = shown > 0;
+    });
+  });
+</script>

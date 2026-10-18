@@ -1,0 +1,23 @@
+# build output
+dist/
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+
+# local secrets (never commit)
+.env
+.env.production
+.dev.vars
+
+# wrangler local state (local D1 and R2 data live here)
+.wrangler/
+
+# editor and OS files
+.DS_Store
+.idea/
+.claude/

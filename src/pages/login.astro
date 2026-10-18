@@ -1,0 +1,56 @@
+---
+import Base from '../layouts/Base.astro';
+import { env } from 'cloudflare:workers';
+import { appConfig } from '../lib/config.js';
+import { getCurrentSession, safeNextPath } from '../lib/auth.js';
+
+const current = await getCurrentSession(Astro);
+if (current) return Astro.redirect(current.admin ? '/admin' : '/dashboard');
+
+const config = appConfig(env);
+const params = Astro.url.searchParams;
+const sent = params.get('sent') === '1';
+const next = safeNextPath(params.get('next'));
+const retryUrl = next ? `/login?next=${encodeURIComponent(next)}` : '/login';
+const verification = params.get('verification');
+const message = params.get('expired') === '1'
+  ? 'That link expired or was already used. Request a new one below.'
+  : params.get('error') === 'email'
+    ? 'Enter your email address to get a link.'
+    : verification === 'unavailable'
+      ? 'Verification is unavailable right now. Please try again.'
+      : verification ? 'Please complete verification again before requesting your link.' : '';
+---
+<Base title="Sign in">
+  <div style="max-width:460px;margin:6vh auto 0;">
+    <h1>Sign in</h1>
+    {sent ? (
+      <div class="card stack">
+        <p style="margin:0;">Check your inbox. If this address has access, a sign-in link is on its way. Each link works once and expires in 30 minutes.</p>
+        {config.ownerEmail && <p class="hint">Nothing after a few minutes? Check spam, then try again with the address you use with us. Still stuck? Email <a href={`mailto:${config.ownerEmail}`}>{config.ownerEmail}</a>.</p>}
+        <a class="btn btn-ghost" href={retryUrl}>Request another link</a>
+      </div>
+    ) : (
+      <div class="card">
+        {message && <div class="notice err" role="alert">{message}</div>}
+        <p class="lead">Enter your email and we will send you a secure link. No password needed.</p>
+        <form method="POST" action="/api/login" data-login-form>
+          <input type="hidden" name="next" value={next} />
+          <div class="honeypot" aria-hidden="true">
+            <label for="website">Leave this empty</label>
+            <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required autocomplete="email" autofocus />
+          </div>
+          {config.turnstileSiteKey && <>
+            <div class="cf-turnstile" data-sitekey={config.turnstileSiteKey} style="margin-bottom:14px;"></div>
+            <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+          </>}
+          <button class="btn btn-accent" type="submit" style="width:100%;">Email me a sign-in link</button>
+        </form>
+      </div>
+    )}
+  </div>
+</Base>

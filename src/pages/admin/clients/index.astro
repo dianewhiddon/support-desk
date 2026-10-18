@@ -1,0 +1,49 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { env } from 'cloudflare:workers';
+import { listClients } from '../../../lib/db.js';
+
+const clients = await listClients(env.DB);
+const error = Astro.url.searchParams.get('error');
+const ERRORS = { email: 'Enter a valid email address.', exists: 'A client with that email already exists.' };
+---
+<Base title="Clients">
+  <div class="page-head">
+    <div>
+      <h1>Clients</h1>
+      <p class="lead" style="margin:0;">Anyone listed and active can sign in with their email and send requests.</p>
+    </div>
+  </div>
+
+  <section class="card" aria-labelledby="add-heading">
+    <h2 id="add-heading">Add a client</h2>
+    {error && <div class="notice err" role="alert">{ERRORS[error] || 'The client was not saved.'}</div>}
+    <form method="POST" action="/api/admin/clients">
+      <div class="split" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;">
+        <div class="field"><label for="client-email">Email</label><input id="client-email" name="email" type="email" required /></div>
+        <div class="field"><label for="client-name">Name</label><input id="client-name" name="name" type="text" maxlength="120" /></div>
+        <div class="field"><label for="client-company">Company <span class="muted">(optional)</span></label><input id="client-company" name="company" type="text" maxlength="160" /></div>
+      </div>
+      <button class="btn btn-accent" type="submit">Add client</button>
+      <p class="hint">Adding a client sends nothing. Share your desk's address when you are ready; they sign in with this email.</p>
+    </form>
+  </section>
+
+  <section style="margin-top:20px;" aria-label="Client list">
+    {clients.length ? (
+      <table class="list">
+        <thead><tr><th>Client</th><th>Email</th><th>Open requests</th><th>Status</th></tr></thead>
+        <tbody>
+          {clients.map((client) => (
+            <tr>
+              <td><a href={`/admin/clients/${client.id}`}>{client.name || client.email}</a>{client.company && <div class="hint" style="margin:0;">{client.company}</div>}</td>
+              <td style="overflow-wrap:anywhere;">{client.email}</td>
+              <td>{client.open_count}</td>
+              <td>{client.active ? 'Active' : 'Inactive'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : <div class="rows"><p class="empty">No clients yet. Add your first one above.</p></div>}
+  </section>
+</Base>

@@ -1,0 +1,138 @@
+---
+/* Voice note, file attachments and links for a client message. The limits
+   here mirror src/lib/uploads.js; the server enforces them again. */
+const { idPrefix = 'message' } = Astro.props;
+const id = (name) => `${idPrefix}-${name}`;
+---
+<div class="message-fields" data-message-fields>
+  <div class="field">
+    <p class="field-label" id={id('voice-label')}>Or say it out loud</p>
+    <div class="voice-row">
+      <button type="button" class="btn btn-ghost" data-voice-button aria-describedby={id('voice-label')}>Record a voice note</button>
+      <span class="muted" data-voice-status role="status" aria-live="polite"></span>
+    </div>
+  </div>
+
+  <div class="field">
+    <p class="field-label">Attach files</p>
+    <label class="dropzone" data-dropzone for={id('files')}>
+      <input class="visually-hidden-file" id={id('files')} name="files" type="file" multiple
+        accept=".docx,.md,.txt,image/jpeg,image/png,image/gif,image/webp,image/avif,application/pdf,audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/x-m4a,audio/aac"
+        data-files aria-describedby={id('file-error')} />
+      <span>Drop files here or tap to browse</span>
+      <span class="hint">Images, PDFs, audio, Word, Markdown or text. Up to 6 files, 15 MB each, 45 MB in total.</span>
+    </label>
+    <ul class="file-rows" data-file-rows></ul>
+    <p class="field-error" id={id('file-error')} data-file-error role="alert" hidden></p>
+  </div>
+
+  <div class="field">
+    <label for={id('links')}>Helpful links <span class="muted">(optional)</span></label>
+    <textarea id={id('links')} name="links" style="min-height:80px;" placeholder="A page, Google Drive or Dropbox link. One per line."></textarea>
+  </div>
+</div>
+
+<script>
+  const MAX_FILES = 6;
+  const MAX_BYTES = 15 * 1024 * 1024;
+  const MAX_TOTAL = 45 * 1024 * 1024;
+  const formatSize = (size: number) => size >= 1048576 ? `${(size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.ceil(size / 1024))} KB`;
+
+  document.querySelectorAll<HTMLElement>('[data-message-fields]').forEach((root) => {
+    const form = root.closest('form');
+    const input = root.querySelector<HTMLInputElement>('[data-files]')!;
+    const rows = root.querySelector<HTMLElement>('[data-file-rows]')!;
+    const error = root.querySelector<HTMLElement>('[data-file-error]')!;
+    const zone = root.querySelector<HTMLElement>('[data-dropzone]')!;
+    const voiceButton = root.querySelector<HTMLButtonElement>('[data-voice-button]')!;
+    const voiceStatus = root.querySelector<HTMLElement>('[data-voice-status]')!;
+    const body = form?.querySelector<HTMLTextAreaElement>('[data-message-body]');
+    const files = () => Array.from(input.files || []);
+
+    const problem = (list = files()) => {
+      if (list.length > MAX_FILES) return 'Choose no more than six files.';
+      if (list.some((file) => file.size > MAX_BYTES)) return 'Each file needs to be 15 MB or smaller.';
+      if (list.reduce((total, file) => total + file.size, 0) > MAX_TOTAL) return 'Together, the files need to be 45 MB or smaller.';
+      return '';
+    };
+    const setError = (message = '') => {
+      error.textContent = message;
+      error.hidden = !message;
+      input.setAttribute('aria-invalid', message ? 'true' : 'false');
+    };
+    const render = () => {
+      rows.replaceChildren(...files().map((file, index) => {
+        const item = document.createElement('li');
+        const name = Object.assign(document.createElement('span'), { className: 'fname', textContent: file.name });
+        const size = Object.assign(document.createElement('span'), { className: 'fsize', textContent: formatSize(file.size) });
+        const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'fremove', textContent: '×' });
+        remove.setAttribute('aria-label', `Remove ${file.name}`);
+        remove.addEventListener('click', () => setFiles(files().filter((_, i) => i !== index)));
+        item.append(name, size, remove);
+        return item;
+      }));
+      setError(problem());
+      // A voice note can stand in for typed words.
+      if (body) body.required = !files().some((file) => file.type.startsWith('audio/'));
+    };
+    const setFiles = (list: File[]) => {
+      const transfer = new DataTransfer();
+      list.slice(0, MAX_FILES).forEach((file) => transfer.items.add(file));
+      input.files = transfer.files;
+      render();
+    };
+
+    input.addEventListener('change', render);
+    zone.addEventListener('dragover', (event) => { event.preventDefault(); zone.classList.add('drag'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+    zone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      zone.classList.remove('drag');
+      const incoming = [...files(), ...Array.from(event.dataTransfer?.files || [])];
+      const message = problem(incoming);
+      if (message) setError(message); else setFiles(incoming);
+    });
+    form?.addEventListener('submit', (event) => {
+      const message = problem();
+      if (message) { event.preventDefault(); setError(message); input.focus(); }
+    });
+
+    let recorder: MediaRecorder | null = null;
+    let timer = 0;
+    voiceButton.addEventListener('click', async () => {
+      if (recorder?.state === 'recording') { recorder.stop(); return; }
+      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+        voiceStatus.textContent = 'Voice recording is not available in this browser.';
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const chunks: Blob[] = [];
+        let elapsed = 0;
+        const active = new MediaRecorder(stream);
+        recorder = active;
+        active.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+        active.onstop = () => {
+          clearInterval(timer);
+          stream.getTracks().forEach((track) => track.stop());
+          const type = active.mimeType || 'audio/webm';
+          const file = new File([new Blob(chunks, { type })], `voice-note-${Date.now()}.${type.includes('mp4') ? 'm4a' : 'webm'}`, { type });
+          const message = problem([...files(), file]);
+          if (message) setError(message); else setFiles([...files(), file]);
+          voiceButton.textContent = 'Record another voice note';
+          voiceStatus.textContent = message || 'Voice note attached below.';
+        };
+        active.start();
+        voiceButton.textContent = 'Stop recording';
+        voiceStatus.textContent = 'Recording… 0:00';
+        timer = window.setInterval(() => {
+          elapsed += 1;
+          voiceStatus.textContent = `Recording… ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
+          if (elapsed >= 300) active.stop();
+        }, 1000);
+      } catch {
+        voiceStatus.textContent = 'Microphone access is blocked. Allow it in your browser settings and try again.';
+      }
+    });
+  });
+</script>
