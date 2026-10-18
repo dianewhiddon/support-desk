@@ -8,8 +8,15 @@ import { newSessionId, newToken } from './ids.js';
 import { isAdminEmail } from './config.js';
 import { safeNextPath } from './paths.js';
 import {
-  getClientByEmail, getClientById, createMagicToken, consumeMagicToken,
-  createSession, getSession, deleteSession, logEvent, normalizeEmail,
+  getClientByEmail,
+  getClientById,
+  createMagicToken,
+  consumeMagicToken,
+  createSession,
+  getSession,
+  deleteSession,
+  logEvent,
+  normalizeEmail,
 } from './db.js';
 
 export { safeNextPath };
@@ -53,7 +60,10 @@ export async function issueMagicLink(email, origin, next = '') {
     adminEmail: admin ? address : null,
     expiresAt: minutesFromNow(MAGIC_TTL_MINUTES).toISOString(),
   });
-  await logEvent(env.DB, 'magic_requested', { clientId: client?.id ?? null, data: admin ? { admin: true } : null });
+  await logEvent(env.DB, 'magic_requested', {
+    clientId: client?.id ?? null,
+    data: admin ? { admin: true } : null,
+  });
   const url = new URL(`/auth/${token}`, origin);
   const destination = safeNextPath(next);
   if (destination) url.searchParams.set('next', destination);
@@ -71,7 +81,12 @@ export async function consumeMagicAndLogin(context, token) {
   }
   const id = newSessionId();
   const expires = daysFromNow(SESSION_TTL_DAYS);
-  await createSession(env.DB, { id, clientId: owner.clientId, adminEmail: owner.adminEmail, expiresAt: expires.toISOString() });
+  await createSession(env.DB, {
+    id,
+    clientId: owner.clientId,
+    adminEmail: owner.adminEmail,
+    expiresAt: expires.toISOString(),
+  });
   context.cookies.set(SESSION_COOKIE, id, {
     httpOnly: true,
     secure: !import.meta.env.DEV,
@@ -80,7 +95,9 @@ export async function consumeMagicAndLogin(context, token) {
     expires,
   });
   await logEvent(env.DB, 'login', {
-    clientId: owner.clientId, ip: clientIp(context), userAgent: userAgent(context),
+    clientId: owner.clientId,
+    ip: clientIp(context),
+    userAgent: userAgent(context),
     data: owner.adminEmail ? { admin: true } : null,
   });
   return owner.adminEmail ? 'admin' : 'client';

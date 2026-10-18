@@ -7,18 +7,34 @@ const INK = '#111111';
 const INK_SOFT = '#3A3A3A';
 const MUTED = '#6B6B6B';
 const LINE = '#E2E2E4';
-const ACCENT = '#2F5D50';
+const ACCENT = '#AD8326';
 const PAPER = '#F3F3F4';
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 
-export const escapeHtml = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+export const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
-export function renderNotificationEmail({ businessName, firstName, heading, body, actionLabel, actionUrl, files = [] }) {
+export function renderNotificationEmail({
+  businessName,
+  firstName,
+  heading,
+  body,
+  actionLabel,
+  actionUrl,
+  files = [],
+}) {
   const fileList = files.length
     ? `<p style="margin:0 0 8px;font-family:${FONT};font-size:15px;font-weight:600;color:${INK};">Files</p>
-       <ul style="margin:0 0 22px;padding-left:20px;">${files.map((file) =>
-         `<li style="margin-bottom:8px;font-family:${FONT};font-size:15px;"><a href="${escapeHtml(file.url)}" style="color:${INK};">Download ${escapeHtml(file.name)}</a></li>`).join('')}</ul>`
+       <ul style="margin:0 0 22px;padding-left:20px;">${files
+         .map(
+           (file) =>
+             `<li style="margin-bottom:8px;font-family:${FONT};font-size:15px;"><a href="${escapeHtml(file.url)}" style="color:${INK};">Download ${escapeHtml(file.name)}</a></li>`,
+         )
+         .join('')}</ul>`
     : '';
   const html = `<!doctype html>
 <html><head>
@@ -31,13 +47,13 @@ export function renderNotificationEmail({ businessName, firstName, heading, body
   <tr><td align="center" style="padding:32px 16px;">
     <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background:#FFFFFF;border:1px solid ${LINE};">
       <tr><td style="padding:28px 28px 8px;">
-        <div style="margin:0 0 18px;font-family:${FONT};font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${ACCENT};">${escapeHtml(businessName)}</div>
+        <div style="margin:0 0 18px;font-family:${FONT};font-size:15px;font-weight:600;color:${INK};">${escapeHtml(businessName)}</div>
         <p style="margin:0 0 14px;font-family:${FONT};font-size:15px;line-height:1.65;color:${INK_SOFT};">Hi ${escapeHtml(firstName)},</p>
         <h1 style="margin:0 0 14px;font-family:${FONT};font-size:22px;line-height:1.3;color:${INK};">${escapeHtml(heading)}</h1>
         <p style="margin:0 0 22px;font-family:${FONT};font-size:15px;line-height:1.65;color:${INK_SOFT};">${escapeHtml(body)}</p>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;border-collapse:collapse;">
-          <tr><td bgcolor="${INK}" style="background:${INK};border-radius:3px;">
-            <a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:13px 20px;font-family:${FONT};font-size:14px;font-weight:700;color:#FFFFFF;text-decoration:none;">${escapeHtml(actionLabel)}</a>
+          <tr><td bgcolor="${ACCENT}" style="background:${ACCENT};border-radius:3px;">
+            <a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:13px 20px;font-family:${FONT};font-size:14px;font-weight:700;color:${INK};text-decoration:none;">${escapeHtml(actionLabel)}</a>
           </td></tr>
         </table>
         ${fileList}

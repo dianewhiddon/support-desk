@@ -10,9 +10,10 @@ const admin = Astro.locals.admin || null;
 const client = Astro.locals.client || null;
 const needsYou = admin ? await countNeedsYou(env.DB) : 0;
 const path = Astro.url.pathname;
-const current = (prefix) => (path === prefix || path.startsWith(`${prefix}/`) ? 'page' : undefined);
+const current = (prefix: string) => (path === prefix || path.startsWith(`${prefix}/`) ? 'page' : undefined);
 const pageTitle = title ? `${title} · ${config.businessName}` : config.businessName;
 ---
+
 <!doctype html>
 <html lang="en">
   <head>
@@ -24,9 +25,12 @@ const pageTitle = title ? `${title} · ${config.businessName}` : config.business
       // Apply the saved theme before first paint, so a dark page never flashes light.
       (function () {
         var theme = null;
-        try { theme = localStorage.getItem('desk-theme'); } catch (e) {}
+        try {
+          theme = localStorage.getItem('desk-theme');
+        } catch (e) {}
         if (theme !== 'dark' && theme !== 'light') {
-          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          theme =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         document.documentElement.dataset.theme = theme;
       })();
@@ -34,24 +38,74 @@ const pageTitle = title ? `${title} · ${config.businessName}` : config.business
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
   <body class:list={[{ 'is-admin': admin, 'is-wide': wide }]}>
-    <a class="skip-link" href="#main">Skip to content</a>
+    <a class="skip-link" href="#main">
+      Skip to content
+    </a>
     <header class="site-header">
       <div class:list={['wrap', 'header-inner', { 'wrap-wide': admin || wide }]}>
         <a class="brand" href={admin ? '/admin' : client ? '/dashboard' : '/'}>
-          {config.businessName}<span class="brand-tag">{admin ? 'Support desk' : 'Support'}</span>
+          {config.businessName}
+          <span class="brand-tag">{admin ? 'Support desk' : 'Support'}</span>
         </a>
         <nav class="nav" aria-label="Main">
-          {admin && <>
-            <a href="/admin" aria-current={path === '/admin' || path.startsWith('/admin/tickets') ? 'page' : undefined}>
-              Queue{needsYou > 0 && <span class="count" aria-label={`${needsYou} need you`}>{needsYou}</span>}
+          {admin && (
+            <>
+              <a
+                href="/admin"
+                aria-current={path === '/admin' || path.startsWith('/admin/tickets') ? 'page' : undefined}
+              >
+                Queue
+                {needsYou > 0 && (
+                  <span class="count" aria-label={`${needsYou} need you`}>
+                    {needsYou}
+                  </span>
+                )}
+              </a>
+              <a href="/admin/clients" aria-current={current('/admin/clients')}>
+                Clients
+              </a>
+            </>
+          )}
+          {client && (
+            <a href="/dashboard" aria-current={current('/dashboard')}>
+              Requests
             </a>
-            <a href="/admin/clients" aria-current={current('/admin/clients')}>Clients</a>
-          </>}
-          {client && <a href="/dashboard" aria-current={current('/dashboard')}>Requests</a>}
-          {(admin || client) && <a href="/logout">Sign out</a>}
+          )}
+          {(admin || client) && (
+            <form action="/logout" method="post">
+              <button class="nav-signout" type="submit">
+                Sign out
+              </button>
+            </form>
+          )}
           <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch light or dark mode">
-            <svg class="icon-sun" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
-            <svg class="icon-moon" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z"/></svg>
+            <svg
+              class="icon-sun"
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" />
+            </svg>
+            <svg
+              class="icon-moon"
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+            >
+              <path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z" />
+            </svg>
           </button>
         </nav>
       </div>
@@ -66,7 +120,9 @@ const pageTitle = title ? `${title} · ${config.businessName}` : config.business
         button.addEventListener('click', function () {
           var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
           document.documentElement.dataset.theme = next;
-          try { localStorage.setItem('desk-theme', next); } catch (e) {}
+          try {
+            localStorage.setItem('desk-theme', next);
+          } catch (e) {}
         });
       })();
     </script>

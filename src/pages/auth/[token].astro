@@ -1,11 +1,26 @@
 ---
 import { consumeMagicAndLogin, safeNextPath } from '../../lib/auth.js';
+import Base from '../../layouts/Base.astro';
 
-const kind = await consumeMagicAndLogin(Astro, Astro.params.token);
 const next = safeNextPath(Astro.url.searchParams.get('next'));
-if (!kind) return Astro.redirect(`/login?expired=1${next ? `&next=${encodeURIComponent(next)}` : ''}`);
-const home = kind === 'admin' ? '/admin' : '/dashboard';
-// An admin link never lands on a client page, or the reverse.
-const fits = next && (kind === 'admin' ? next.startsWith('/admin') : !next.startsWith('/admin'));
-return Astro.redirect(fits ? next : home);
+if (Astro.request.method === 'POST') {
+  const kind = await consumeMagicAndLogin(Astro, Astro.params.token);
+  if (!kind) return Astro.redirect(`/login?expired=1${next ? `&next=${encodeURIComponent(next)}` : ''}`);
+  const home = kind === 'admin' ? '/admin' : '/dashboard';
+  // An admin link never lands on a client page, or the reverse.
+  const fits = next && (kind === 'admin' ? next.startsWith('/admin') : !next.startsWith('/admin'));
+  return Astro.redirect(fits ? next : home, 303);
+}
 ---
+
+<Base title="Confirm sign-in">
+  <section class="card">
+    <h1>Sign in to your support desk</h1>
+    <p>Continue to open your requests. This link works once.</p>
+    <form method="post">
+      <button class="btn btn-accent" type="submit">
+        Continue
+      </button>
+    </form>
+  </section>
+</Base>

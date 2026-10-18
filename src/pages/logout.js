@@ -1,6 +1,6 @@
 import { logout } from '../lib/auth.js';
 
-export async function GET(context) {
+export async function POST(context) {
   await logout(context);
-  return context.redirect('/login');
+  return context.redirect('/login', 303);
 }

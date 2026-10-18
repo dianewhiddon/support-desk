@@ -1,14 +1,26 @@
 /* Client uploads. Every file is checked by its first bytes, not only its
    name or declared type, before anything reaches R2. */
+import { validOffice } from './office.js';
 
 export const MAX_FILE_BYTES = 15 * 1024 * 1024;
 export const MAX_FILES = 6;
 export const MAX_TOTAL_BYTES = 45 * 1024 * 1024;
 
 const MEDIA_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
-  'audio/mpeg', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm',
-  'audio/mp4', 'audio/x-m4a', 'audio/aac', 'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/ogg',
+  'audio/webm',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/aac',
+  'application/pdf',
 ]);
 
 const DOCUMENT_TYPES = new Map([
@@ -18,7 +30,11 @@ const DOCUMENT_TYPES = new Map([
 ]);
 
 const ascii = (bytes, start, length) => String.fromCharCode(...bytes.slice(start, start + length));
-const declaredType = (file) => String(file.type || '').toLowerCase().split(';', 1)[0].trim();
+const declaredType = (file) =>
+  String(file.type || '')
+    .toLowerCase()
+    .split(';', 1)[0]
+    .trim();
 
 async function detectedMediaType(file) {
   const bytes = new Uint8Array(await file.slice(0, 32).arrayBuffer());
@@ -42,41 +58,52 @@ async function validateDocument(file) {
   const expected = DOCUMENT_TYPES.get(extension);
   const declared = declaredType(file);
   if (extension === '.docx') {
-    const bytes = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-    const zip = bytes[0] === 0x50 && bytes[1] === 0x4b && [0x03, 0x05, 0x07].includes(bytes[2]) && [0x04, 0x06, 0x08].includes(bytes[3]);
-    if (!zip || (declared && ![expected, 'application/octet-stream'].includes(declared))) return { ok: false, reason: 'signature' };
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (
+      !validOffice(bytes, 'docx') ||
+      (declared && ![expected, 'application/octet-stream'].includes(declared))
+    )
+      return { ok: false, reason: 'signature' };
   } else {
-    if (declared && ![expected, 'text/plain', 'application/octet-stream'].includes(declared)) return { ok: false, reason: 'type' };
-    const bytes = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+    if (declared && ![expected, 'text/plain', 'application/octet-stream'].includes(declared))
+      return { ok: false, reason: 'type' };
+    const bytes = new Uint8Array(await file.arrayBuffer());
     if (bytes.includes(0)) return { ok: false, reason: 'signature' };
   }
   return { ok: true, contentType: expected };
 }
 
 export async function validateTicketFile(file) {
-  if (!file || typeof file.arrayBuffer !== 'function' || !file.name || !file.size) return { ok: false, reason: 'empty' };
+  if (!file || typeof file.arrayBuffer !== 'function' || !file.name || !file.size)
+    return { ok: false, reason: 'empty' };
+  if (file.name.length > 180 || /[\x00-\x1f\x7f/\\]/.test(file.name)) return { ok: false, reason: 'type' };
   if (file.size > MAX_FILE_BYTES) return { ok: false, reason: 'size' };
   if (/\.(docx|md|txt)$/i.test(file.name)) return validateDocument(file);
   const declared = declaredType(file);
   if (!MEDIA_TYPES.has(declared)) return { ok: false, reason: 'type' };
   const detected = await detectedMediaType(file);
   if (!detected) return { ok: false, reason: 'signature' };
-  const compatible = declared === detected
-    || (declared === 'audio/x-wav' && detected === 'audio/wav')
-    || (['audio/x-m4a', 'audio/aac'].includes(declared) && detected === 'audio/mp4');
+  const compatible =
+    declared === detected ||
+    (declared === 'audio/x-wav' && detected === 'audio/wav') ||
+    (['audio/x-m4a', 'audio/aac'].includes(declared) && detected === 'audio/mp4');
   return compatible ? { ok: true, contentType: detected } : { ok: false, reason: 'signature' };
 }
 
 /** Validate a whole submission. Returns { ok, reason }. */
 export async function validateTicketFiles(files) {
   if (files.length > MAX_FILES) return { ok: false, reason: 'too_many' };
-  if (files.reduce((total, file) => total + file.size, 0) > MAX_TOTAL_BYTES) return { ok: false, reason: 'too_large' };
+  if (files.reduce((total, file) => total + file.size, 0) > MAX_TOTAL_BYTES)
+    return { ok: false, reason: 'too_large' };
   if (files.some((file) => file.size > MAX_FILE_BYTES)) return { ok: false, reason: 'too_large' };
   const results = await Promise.all(files.map(validateTicketFile));
   return results.every((result) => result.ok) ? { ok: true, results } : { ok: false, reason: 'attachments' };
 }
 
-const safeName = (name) => String(name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'file';
+const safeName = (name) =>
+  String(name || 'file')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(0, 80) || 'file';
 
 /** Store one validated file under tickets/<ref>/ in R2. */
 export async function storeTicketFile(bucket, ref, file) {
@@ -112,6 +139,9 @@ export function formFiles(form, name = 'files') {
 }
 
 export function parseLinks(value) {
-  return String(value || '').split(/[\n,]/).map((item) => item.trim())
-    .filter((item) => /^https?:\/\//i.test(item)).slice(0, 20);
+  return String(value || '')
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter((item) => /^https?:\/\//i.test(item))
+    .slice(0, 20);
 }

@@ -1,4 +1,4 @@
--- Layout-test data for scripts/design-serve.mjs. Loaded into a throwaway local
+-- Fictional data for scripts/demo.mjs. Loaded into a throwaway local
 -- database only; never applied to a real one.
 INSERT INTO clients (id, email, name, company, time_zone, ai_notes) VALUES
   (1, 'sarah@example.com', 'Sarah Connor', 'Cyberdyne Alternatives', 'America/Los_Angeles', 'Runs a resistance training studio for women over 40. Calls her clients members, never customers. We rebuilt her site in March; she approves every photo herself.'),
@@ -21,10 +21,6 @@ INSERT INTO messages (id, client_id, ticket_id, author, body, visibility, create
   (4, 1, 3, 'client', 'This is perfect, thank you!', 'client', '2026-09-22 14:30:00'),
   (5, 2, 4, 'client', 'Also, one of them goes by Dr. Silberman on the site, please.', 'client', '2026-10-07 09:10:00');
 
-INSERT INTO ticket_attachments (id, ticket_id, message_id, r2_key, filename, content_type, size, role, metadata_json) VALUES
-  (1, 1, NULL, 'tickets/SUP-2026-0001/a-hero-new.jpg', 'hero-new.jpg', 'image/jpeg', 482113, NULL, NULL),
-  (2, 3, 3, 'tickets/SUP-2026-0003/reply/1/k-guide.pdf', 'workshop-calendar-guide.pdf', 'application/pdf', 220114, 'reply_sent', '{"draft_id":1}');
-
 INSERT INTO reply_drafts (id, client_id, ticket_id, body, status, source, model, sent_message_id, revision) VALUES
   (1, 1, 3, 'Yes. I added a Workshops calendar with its own booking page and linked it from the Services menu: https://example.com/workshops', 'sent', 'owner', NULL, 3, 2),
   (2, 1, 2, 'Hi Sarah, thanks for flagging this. I am checking the contact form now and will tell you as soon as messages are coming through again.', 'ready', 'ai', 'claude-opus-5-5', NULL, 1);
@@ -38,5 +34,7 @@ INSERT INTO events (ticket_id, client_id, type, data, at) VALUES
   (3, 1, 'request_state', '{"action":"resolve","previousStatus":"open"}', '2026-09-22 14:00:00');
 
 INSERT INTO sessions (id, client_id, admin_email, expires_at) VALUES
-  ('design-client-session', 1, NULL, '2099-01-01T00:00:00.000Z'),
-  ('design-admin-session', NULL, 'you@your_domain.com', '2099-01-01T00:00:00.000Z');
+  ('a59409967f6cca035acccea68a3c9bd9e876c5a73b3a11ebfa33907b90da1553', 1, NULL, '2099-01-01T00:00:00.000Z'),
+  ('fe8f671e90f4bef14aa6658a8f90884157d0378f6fbc2fe6436804d87f95a72a', NULL, 'you@your_domain.com', '2099-01-01T00:00:00.000Z');
+
+INSERT INTO counters (key, value) VALUES ('ticket_ref_2026', 4);

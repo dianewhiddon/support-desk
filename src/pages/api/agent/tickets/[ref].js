@@ -6,5 +6,7 @@ import { isAgentRequest, requestForAgent } from '../../../../lib/agent.js';
 export async function GET(context) {
   if (!isAgentRequest(context.request, env)) return new Response('Unauthorized', { status: 401 });
   const request = await requestForAgent(env.DB, context.params.ref, context.url.origin);
-  return request ? Response.json({ ok: true, request }) : Response.json({ ok: false, error: 'Request not found.' }, { status: 404 });
+  return request
+    ? Response.json({ ok: true, request })
+    : Response.json({ ok: false, error: 'Request not found.' }, { status: 404 });
 }

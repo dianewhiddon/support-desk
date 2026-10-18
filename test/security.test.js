@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEnv, seedClient, pngFile } from './helpers.js';
+import { createEnv, seedClient, pngFile, officeFile } from './helpers.js';
 import { safeNextPath } from '../src/lib/paths.js';
 import { canClientRead, attachmentHeaders, attachmentResponse } from '../src/lib/attachments.js';
 import { validateTicketFile, validateTicketFiles } from '../src/lib/uploads.js';
@@ -29,14 +29,20 @@ test('clients read only their own conversation files', () => {
   assert.equal(canClientRead(own, 2), false);
   assert.equal(canClientRead({ ...own, role: 'reply_draft' }, 1), false);
   assert.equal(canClientRead({ ...own, message_id: 9, message_visibility: 'internal' }, 1), false);
-  assert.equal(canClientRead({ ...own, message_id: 9, message_visibility: 'client', role: 'reply_sent' }, 1), true);
+  assert.equal(
+    canClientRead({ ...own, message_id: 9, message_visibility: 'client', role: 'reply_sent' }, 1),
+    true,
+  );
 });
 
 test('downloads are sandboxed and only images and audio display inline', () => {
   const pdf = attachmentHeaders({ filename: 'résumé "final".pdf', content_type: 'application/pdf' });
   assert.match(pdf['content-disposition'], /^attachment; filename="r_sum_ final.pdf"; filename\*=UTF-8''/);
   assert.equal(pdf['content-security-policy'], "sandbox; default-src 'none'");
-  assert.match(attachmentHeaders({ filename: 'a.png', content_type: 'image/png' })['content-disposition'], /^inline/);
+  assert.match(
+    attachmentHeaders({ filename: 'a.png', content_type: 'image/png' })['content-disposition'],
+    /^inline/,
+  );
 });
 
 test('another client cannot download a file by guessing its id', async (t) => {
@@ -53,7 +59,9 @@ test('another client cannot download a file by guessing its id', async (t) => {
 
 test('uploads are checked by their contents, not their names', async () => {
   assert.equal((await validateTicketFile(pngFile())).ok, true);
-  const disguised = new File([new TextEncoder().encode('<script>alert(1)</script>')], 'photo.png', { type: 'image/png' });
+  const disguised = new File([new TextEncoder().encode('<script>alert(1)</script>')], 'photo.png', {
+    type: 'image/png',
+  });
   assert.deepEqual(await validateTicketFile(disguised), { ok: false, reason: 'signature' });
   const html = new File([new TextEncoder().encode('<html>')], 'page.html', { type: 'text/html' });
   assert.equal((await validateTicketFile(html)).ok, false);
@@ -63,22 +71,22 @@ test('uploads are checked by their contents, not their names', async () => {
 });
 
 test('reply files reject Office documents that carry macros', async () => {
-  const entry = (name) => {
-    const nameBytes = new TextEncoder().encode(name);
-    const header = new Uint8Array(46);
-    header.set([0x50, 0x4b, 0x01, 0x02]);
-    new DataView(header.buffer).setUint16(28, nameBytes.length, true);
-    return [...header, ...nameBytes];
-  };
-  const docx = (names) => new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, ...names.flatMap(entry)])], 'brief.docx',
-    { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  const docx = officeFile;
   assert.equal((await validateReplyFile(docx(['[Content_Types].xml', 'word/document.xml']))).ok, true);
-  assert.equal((await validateReplyFile(docx(['[Content_Types].xml', 'word/document.xml', 'word/vbaProject.bin']))).ok, false);
+  assert.equal(
+    (await validateReplyFile(docx(['[Content_Types].xml', 'word/document.xml', 'word/vbaProject.bin']))).ok,
+    false,
+  );
 });
 
 test('message links render only http and https', () => {
-  const parts = messageLinks('See https://example.com/page. Or [the doc](https://docs.example.com) and javascript:alert(1)');
-  assert.deepEqual(parts.filter((part) => part.href).map((part) => part.href), ['https://example.com/page', 'https://docs.example.com']);
+  const parts = messageLinks(
+    'See https://example.com/page. Or [the doc](https://docs.example.com) and javascript:alert(1)',
+  );
+  assert.deepEqual(
+    parts.filter((part) => part.href).map((part) => part.href),
+    ['https://example.com/page', 'https://docs.example.com'],
+  );
   assert.equal(safeHref('javascript:alert(1)'), '#');
 });
 
@@ -88,8 +96,14 @@ test('delivery webhooks are applied once and never move status backwards', async
   sqlite.exec(`INSERT INTO tickets (ref, client_id, title, body) VALUES ('SUP-1', 1, 'T', 'B');
     INSERT INTO email_deliveries (client_id, ticket_id, kind, recipient_email, payload_json, status, idempotency_key, provider_message_id)
     VALUES (1, 1, 'reply', 'sarah@example.com', '{}', 'accepted', 'k', 'em_1');`);
-  assert.equal(await recordEmailProviderEvent(env.DB, { svixId: 'a', emailId: 'em_1', status: 'delivered' }), true);
-  assert.equal(await recordEmailProviderEvent(env.DB, { svixId: 'a', emailId: 'em_1', status: 'delivered' }), false);
+  assert.equal(
+    await recordEmailProviderEvent(env.DB, { svixId: 'a', emailId: 'em_1', status: 'delivered' }),
+    true,
+  );
+  assert.equal(
+    await recordEmailProviderEvent(env.DB, { svixId: 'a', emailId: 'em_1', status: 'delivered' }),
+    false,
+  );
   await recordEmailProviderEvent(env.DB, { svixId: 'b', emailId: 'em_1', status: 'accepted' });
   assert.equal(sqlite.prepare('SELECT status FROM email_deliveries').get().status, 'delivered');
 });
@@ -98,18 +112,27 @@ test('a session or sign-in token belongs to exactly one client or admin', (t) =>
   const { sqlite } = createEnv(t);
   seedClient(sqlite);
   assert.throws(() => sqlite.exec("INSERT INTO sessions (id, expires_at) VALUES ('s', '2099-01-01')"));
-  assert.throws(() => sqlite.exec("INSERT INTO sessions (id, client_id, admin_email, expires_at) VALUES ('s', 1, 'a@b.c', '2099-01-01')"));
+  assert.throws(() =>
+    sqlite.exec(
+      "INSERT INTO sessions (id, client_id, admin_email, expires_at) VALUES ('s', 1, 'a@b.c', '2099-01-01')",
+    ),
+  );
   sqlite.exec("INSERT INTO sessions (id, admin_email, expires_at) VALUES ('s', 'a@b.c', '2099-01-01')");
 });
 
 test('the agent API needs the exact token, and only a long one', async () => {
   const { isAgentRequest } = await import('../src/lib/agent.js');
   const token = 'a'.repeat(40);
-  const request = (value) => new Request('https://desk.test/api/agent/tickets', { headers: value ? { authorization: value } : {} });
+  const request = (value) =>
+    new Request('https://desk.test/api/agent/tickets', { headers: value ? { authorization: value } : {} });
   assert.equal(isAgentRequest(request(`Bearer ${token}`), { AGENT_TOKEN: token }), true);
   assert.equal(isAgentRequest(request(`Bearer ${token}x`), { AGENT_TOKEN: token }), false);
   assert.equal(isAgentRequest(request(''), { AGENT_TOKEN: token }), false);
-  assert.equal(isAgentRequest(request('Bearer short'), { AGENT_TOKEN: 'short' }), false, 'a short token turns the API off');
+  assert.equal(
+    isAgentRequest(request('Bearer short'), { AGENT_TOKEN: 'short' }),
+    false,
+    'a short token turns the API off',
+  );
   assert.equal(isAgentRequest(request('Bearer '), {}), false);
 });
 
@@ -117,13 +140,26 @@ test('an agent draft and note never reach the client on their own', async (t) =>
   const { saveAgentDraft, addAgentNote, requestForAgent } = await import('../src/lib/agent.js');
   const { env, sqlite } = createEnv(t);
   seedClient(sqlite);
-  sqlite.exec(`INSERT INTO tickets (ref, client_id, title, body) VALUES ('SUP-1', 1, 'T', 'Please fix the footer');`);
+  sqlite.exec(
+    `INSERT INTO tickets (ref, client_id, title, body) VALUES ('SUP-1', 1, 'T', 'Please fix the footer');`,
+  );
   const first = await saveAgentDraft(env.DB, 'SUP-1', { body: 'Fixed the footer link.' });
   assert.equal(first.ok, true);
   const blind = await saveAgentDraft(env.DB, 'SUP-1', { body: 'Overwrite without reading' });
   assert.equal(blind.status, 409);
-  assert.equal((await saveAgentDraft(env.DB, 'SUP-1', { body: 'Updated', expectedRevision: first.draft.revision })).ok, true);
-  assert.equal((await addAgentNote(env.DB, 'SUP-1', { body: 'Changed footer.html line 12.', idempotencyKey: 'note-0001' })).ok, true);
+  assert.equal(
+    (await saveAgentDraft(env.DB, 'SUP-1', { body: 'Updated', expectedRevision: first.draft.revision })).ok,
+    true,
+  );
+  assert.equal(
+    (
+      await addAgentNote(env.DB, 'SUP-1', {
+        body: 'Changed footer.html line 12.',
+        idempotencyKey: 'note-0001',
+      })
+    ).ok,
+    true,
+  );
   await addAgentNote(env.DB, 'SUP-1', { body: 'Changed footer.html line 12.', idempotencyKey: 'note-0001' });
   const view = await requestForAgent(env.DB, 'SUP-1', 'https://desk.test');
   assert.equal(view.draft.body, 'Updated');

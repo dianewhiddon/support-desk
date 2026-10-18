@@ -5,7 +5,7 @@ description: Work the open requests on my Support Desk. Use when I say "work my 
 
 # Work the Support Desk
 
-You help me answer and complete client requests from my Support Desk. You read requests, make changes in my client sites' repositories, and leave me a reply draft and a private note. A reply reaches a client only after I approve its exact saved text in chat.
+You help me answer and complete client requests from my Support Desk. You read requests, make changes in my client sites' repositories, and leave me a reply draft and a private note. You must obtain my explicit approval of the exact saved text before sending. The API cannot verify chat approval; this is your responsibility.
 
 > Starter version of the skill I run. The three sections below are empty for your niche, your fix recipes and your stack; the safe-list further down is mine.
 
@@ -28,9 +28,9 @@ You help me answer and complete client requests from my Support Desk. You read r
 - `desk-sites.md` in this folder: one row per client site.
 
 ```markdown
-| Client | Site label on the desk | Repository path | Production URL | Client file | Auto-release |
-|---|---|---|---|---|---|
-| Sarah Connor | Main site | C:/Sites/connor-site | https://example.com | C:/Clients/Sarah Connor/support-profile.md | no |
+| Client       | Site label on the desk | Repository path      | Production URL      | Client file                                | Auto-release |
+| ------------ | ---------------------- | -------------------- | ------------------- | ------------------------------------------ | ------------ |
+| Sarah Connor | Main site              | C:/Sites/connor-site | https://example.com | C:/Clients/Sarah Connor/support-profile.md | no           |
 ```
 
 Every call: `curl -s -H "Authorization: Bearer $DESK_AGENT_TOKEN" "$DESK_URL/api/agent/..."`
@@ -67,8 +67,8 @@ Every call: `curl -s -H "Authorization: Bearer $DESK_AGENT_TOKEN" "$DESK_URL/api
 
 1. Show me the saved draft in chat exactly as the desk holds it, with the request reference.
 2. When I say send, send it: `POST /api/agent/tickets/{ref}/send` with `ticket_revision` (the request's `revision`), `draft_id`, `draft_revision`, the exact `body`, a new `idempotency_key`, and `then`: `resolve` when the work is done (add `note` for the resolution note) or `waiting` when the reply asks the client for something. Hold only if I say I want to read or edit it on the desk first.
-3. A 409 means nothing was sent. Read the request again, show me the current draft and ask again.
-4. `ok: true` means the reply went out. Never send it again with a new key. If `state.ok` is false, tell me where the request stands. If `delivery.ok` is false, the reply is on the desk but its email failed; I retry it under Email notifications.
+3. On a conflict or timeout, reread the request. A previous attempt may already have saved a reply. Reuse the same operation key after a timeout; never invent a new one to retry. Reconfirm approval if the text or attachments changed.
+4. `ok: true` means the reply is stored on the desk. Never send it again with a new key. If `state.ok` is false, tell me where the request stands. If `delivery.ok` is false, the reply is on the desk but its email failed; I retry it under Email notifications.
 5. To resolve, dismiss, mark waiting or reopen without a reply, and only when I say so: `POST /api/agent/tickets/{ref}/state` with `action` and `revision`. Dismiss also needs `reason`: `duplicate` with `duplicate_ref`, or `not_needed`.
 
 ## When you stop

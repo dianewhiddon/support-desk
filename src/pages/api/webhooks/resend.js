@@ -23,7 +23,8 @@ export async function POST(context) {
     'svix-timestamp': context.request.headers.get('svix-timestamp'),
     'svix-signature': context.request.headers.get('svix-signature'),
   };
-  if (!headers['svix-id'] || !headers['svix-timestamp'] || !headers['svix-signature']) return json(400, { error: 'Missing signature headers.' });
+  if (!headers['svix-id'] || !headers['svix-timestamp'] || !headers['svix-signature'])
+    return json(400, { error: 'Missing signature headers.' });
   let event;
   try {
     event = new Webhook(env.RESEND_WEBHOOK_SECRET).verify(raw, headers);

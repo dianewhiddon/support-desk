@@ -6,21 +6,71 @@ import LinkedText from '../LinkedText.astro';
 import { fmtDateTime, parseLinksJson, safeHref, THREAD_VISIBLE } from '../../lib/render.js';
 import { attachmentHref } from '../../lib/attachments.js';
 
-const { ticket, messages = [], attachments = [], deliveries = [], clientName = 'Client', ownerName = 'You', timeZone } = Astro.props;
-const filesFor = (messageId) => attachments
-  .filter((file) => (file.message_id ?? null) === messageId)
-  .map((file) => ({ kind: String(file.content_type).startsWith('audio/') ? 'audio' : 'file', href: attachmentHref(file.id, true), label: file.filename || 'File' }));
-const linksFor = (json) => parseLinksJson(json).map((link) => ({ kind: 'link', href: safeHref(link), label: 'Open link' }));
-const deliveryByMessage = new Map(deliveries.filter((d) => d.message_id && d.kind === 'reply').map((d) => [Number(d.message_id), d]));
-const TONE = { accepted: 'ok', delivered: 'ok', pending: 'warn', sending: 'warn', delayed: 'warn', failed: 'err', bounced: 'err', complained: 'err' };
+import type { Ticket, Message, Attachment, Delivery } from '../../lib/models';
+interface Props {
+  ticket: Ticket;
+  messages?: Message[];
+  attachments?: Attachment[];
+  deliveries?: Delivery[];
+  clientName?: string;
+  ownerName?: string;
+  timeZone: string;
+}
+const {
+  ticket,
+  messages = [],
+  attachments = [],
+  deliveries = [],
+  clientName = 'Client',
+  ownerName = 'You',
+  timeZone,
+} = Astro.props;
+const filesFor = (messageId: number | null) =>
+  attachments
+    .filter((file) => (file.message_id ?? null) === messageId)
+    .map((file) => ({
+      kind: String(file.content_type).startsWith('audio/') ? 'audio' : 'file',
+      href: attachmentHref(file.id, true),
+      label: file.filename || 'File',
+    }));
+const linksFor = (json: string | null) =>
+  parseLinksJson(json).map((link) => ({ kind: 'link', href: safeHref(link), label: 'Open link' }));
+const deliveryByMessage = new Map(
+  deliveries.filter((d) => d.message_id && d.kind === 'reply').map((d) => [Number(d.message_id), d]),
+);
+const TONE: Record<string, string> = {
+  accepted: 'ok',
+  delivered: 'ok',
+  pending: 'warn',
+  sending: 'warn',
+  delayed: 'warn',
+  failed: 'err',
+  bounced: 'err',
+  complained: 'err',
+};
 const folded = messages.length > THREAD_VISIBLE + 2;
 ---
+
 <div class="thread">
-  <ThreadEntry tone="client" name={clientName} role={ticket.type === 'question' ? 'Question' : 'Original request'} files={[...filesFor(null), ...linksFor(ticket.links)]}>
-    <p><LinkedText body={ticket.body} /></p>
+  <ThreadEntry
+    tone="client"
+    name={clientName}
+    role={ticket.type === 'question' ? 'Question' : 'Original request'}
+    files={[...filesFor(null), ...linksFor(ticket.links)]}
+  >
+    <p>
+      <LinkedText body={ticket.body} />
+    </p>
     {ticket.page && <p class="hint">Page: {ticket.page}</p>}
   </ThreadEntry>
-  {folded && <details class="thread-earlier"><summary><span class="when-closed">Show {messages.length - THREAD_VISIBLE} earlier messages</span><span class="when-open">Hide earlier messages</span></summary></details>}
+  {folded && (
+    <details class="thread-earlier">
+      <summary>
+        <span class="when-closed">Show {messages.length - THREAD_VISIBLE} earlier messages</span>
+        <span class="when-open">Hide earlier messages</span>
+      </summary>
+    </details>
+  )}
   {messages.map((message, index) => {
     const note = message.visibility === 'internal';
     const delivery = deliveryByMessage.get(Number(message.id));
@@ -36,7 +86,9 @@ const folded = messages.length > THREAD_VISIBLE + 2;
         earlier={folded && index < messages.length - THREAD_VISIBLE}
         files={[...filesFor(message.id), ...linksFor(message.links)]}
       >
-        <p><LinkedText body={message.body} /></p>
+        <p>
+          <LinkedText body={message.body} />
+        </p>
       </ThreadEntry>
     );
   })}

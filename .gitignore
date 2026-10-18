@@ -8,6 +8,7 @@ node_modules/
 
 # logs
 npm-debug.log*
+*.log
 
 # local secrets (never commit)
 .env
@@ -21,3 +22,13 @@ npm-debug.log*
 .DS_Store
 .idea/
 .claude/
+
+.env.*
+!.env.example
+.dev.vars.*
+!.dev.vars.example
+coverage/
+playwright-report/
+test-results/
+release/
+.impeccable/review/

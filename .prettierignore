@@ -1,0 +1,10 @@
+node_modules
+dist
+.astro
+.wrangler
+package-lock.json
+LICENSE.md
+CHANGELOG.md
+docs/screenshots
+
+worker-configuration.d.ts

@@ -2,6 +2,7 @@
 /* Submits [data-json-form] forms with fetch so a failure keeps the admin's
    typed text on the page. The server answers JSON with { ok, error, redirect }. */
 ---
+
 <script>
   document.querySelectorAll<HTMLFormElement>('[data-json-form]').forEach((form) => {
     const reason = form.querySelector<HTMLSelectElement>('[name=reason]');
@@ -19,30 +20,59 @@
       event.preventDefault();
       if (form.dataset.busy === 'true') return;
       const notice = form.querySelector<HTMLElement>('[data-outcome]');
-      const say = (text: string, error = false) => { if (notice) { notice.textContent = text; notice.classList.toggle('field-error', error); } };
-      if (!form.matches('[data-reply-draft]') && document.querySelector('[data-reply-draft][data-dirty=true]')) {
+      const say = (text: string, error = false) => {
+        if (notice) {
+          notice.textContent = text;
+          notice.classList.toggle('field-error', error);
+        }
+      };
+      if (
+        !form.matches('[data-reply-draft]') &&
+        document.querySelector('[data-reply-draft][data-dirty=true]')
+      ) {
         say('Save your reply draft before changing this request.', true);
         return;
       }
-      if (form.matches('[data-ai-draft]') && document.querySelector<HTMLTextAreaElement>('[data-reply-draft] [name=body]')?.value.trim() && !confirm('Replace the current draft text with a new AI draft?')) return;
+      if (
+        form.matches('[data-ai-draft]') &&
+        document.querySelector<HTMLTextAreaElement>('[data-reply-draft] [name=body]')?.value.trim() &&
+        !confirm('Replace the current draft text with a new AI draft?')
+      )
+        return;
       const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null;
-      if (submitter?.value === 'send_reply' && form.querySelector<HTMLInputElement>('[data-file-picker]')?.files?.length && form.querySelector('[data-retry-upload]:not([hidden])')) {
+      if (
+        submitter?.value === 'send_reply' &&
+        form.querySelector<HTMLInputElement>('[data-file-picker]')?.files?.length &&
+        form.querySelector('[data-retry-upload]:not([hidden])')
+      ) {
         say('Finish or clear the file upload before sending.', true);
         return;
       }
       const body = new FormData(form);
       if (submitter?.name) body.set(submitter.name, submitter.value);
       form.dataset.busy = 'true';
-      const controls = Array.from(form.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('button,input:not([type=hidden]),textarea,select'));
+      const controls = Array.from(
+        form.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+          'button,input:not([type=hidden]),textarea,select',
+        ),
+      );
       const before = controls.map((control) => control.disabled);
-      controls.forEach((control) => { control.disabled = true; });
+      controls.forEach((control) => {
+        control.disabled = true;
+      });
       say(form.matches('[data-ai-draft]') ? 'Claude is writing…' : 'Saving…');
       try {
-        const response = await fetch(form.getAttribute('action')!, { method: 'POST', headers: { accept: 'application/json' }, body });
+        const response = await fetch(form.getAttribute('action')!, {
+          method: 'POST',
+          headers: { accept: 'application/json' },
+          body,
+        });
         if (!response.headers.get('content-type')?.includes('application/json')) {
-          throw new Error([401, 403].includes(response.status)
-            ? 'Your sign-in has expired. Your text is still here. Sign in again in another tab, then retry.'
-            : 'The server did not confirm this. Your text is still here. Reload to check before retrying.');
+          throw new Error(
+            [401, 403].includes(response.status)
+              ? 'Your sign-in has expired. Your text is still here. Sign in again in another tab, then retry.'
+              : 'The server did not confirm this. Your text is still here. Reload to check before retrying.',
+          );
         }
         const result = await response.json();
         if (result.draft) {
@@ -51,14 +81,20 @@
           if (id) id.value = String(result.draft.id);
           if (revision) revision.value = String(result.draft.revision);
         }
-        if (!response.ok || !result.ok) throw new Error(result.error || 'That did not work. Your text is still here.');
+        if (!response.ok || !result.ok)
+          throw new Error(result.error || 'That did not work. Your text is still here.');
         form.dataset.dirty = 'false';
-        if (result.redirect) { location.assign(result.redirect); return; }
+        if (result.redirect) {
+          location.assign(result.redirect);
+          return;
+        }
         say('Draft saved.');
       } catch (error) {
         say(error instanceof Error ? error.message : 'That did not work. Your text is still here.', true);
       } finally {
-        controls.forEach((control, i) => { control.disabled = before[i]; });
+        controls.forEach((control, i) => {
+          control.disabled = before[i];
+        });
         form.dataset.busy = 'false';
       }
     });
@@ -68,11 +104,16 @@
         if ((event.target as HTMLElement).matches('[data-file-picker]')) return;
         form.dataset.dirty = 'true';
         const notice = form.querySelector<HTMLElement>('[data-outcome]');
-        if (notice) { notice.textContent = 'Unsaved changes.'; notice.classList.remove('field-error'); }
+        if (notice) {
+          notice.textContent = 'Unsaved changes.';
+          notice.classList.remove('field-error');
+        }
       });
     }
   });
   window.addEventListener('beforeunload', (event) => {
-    if (document.querySelector('[data-reply-draft][data-dirty=true]')) { event.preventDefault(); event.returnValue = ''; }
+    if (document.querySelector('[data-reply-draft][data-dirty=true]')) {
+      event.preventDefault();
+    }
   });
 </script>

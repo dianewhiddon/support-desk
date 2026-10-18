@@ -5,22 +5,26 @@ export function clientStatusLabel(ticket, ownerName) {
   if (ticket.type === 'question') {
     return { waiting: 'Your turn', done: 'Answered' }[ticket.status] || 'Asked';
   }
-  return {
-    new: 'Received',
-    open: `With ${ownerName}`,
-    waiting: 'Waiting on you',
-    done: 'Done',
-  }[ticket.status] || ticket.status;
+  return (
+    {
+      new: 'Received',
+      open: `With ${ownerName}`,
+      waiting: 'Waiting on you',
+      done: 'Done',
+    }[ticket.status] || ticket.status
+  );
 }
 
 export function adminStatusLabel(ticket) {
-  return {
-    new: 'New',
-    open: 'Client replied',
-    waiting: 'Waiting on client',
-    done: 'Resolved',
-    closed: 'Dismissed',
-  }[ticket.status] || ticket.status;
+  return (
+    {
+      new: 'New',
+      open: 'Client replied',
+      waiting: 'Waiting on client',
+      done: 'Resolved',
+      closed: 'Dismissed',
+    }[ticket.status] || ticket.status
+  );
 }
 
 /** D1 stores 'YYYY-MM-DD HH:MM:SS' in UTC; JavaScript writes ISO strings. */
@@ -34,9 +38,20 @@ export function parseStoredDate(value) {
 export function fmtDateTime(value, timeZone = 'America/Chicago') {
   const date = parseStoredDate(value);
   if (!date) return '';
-  const options = { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone };
-  try { return new Intl.DateTimeFormat('en-US', options).format(date); }
-  catch { return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(date); }
+  const options = {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+    timeZone,
+  };
+  try {
+    return new Intl.DateTimeFormat('en-US', options).format(date);
+  } catch {
+    return new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' }).format(date);
+  }
 }
 
 export function timeAgo(value, now = Date.now()) {
@@ -49,7 +64,12 @@ export function timeAgo(value, now = Date.now()) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 export function parseLinksJson(json) {

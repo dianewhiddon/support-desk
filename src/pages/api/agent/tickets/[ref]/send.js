@@ -7,5 +7,7 @@ import { env } from 'cloudflare:workers';
 import { agentJson, sendApprovedReply } from '../../../../../lib/agent.js';
 
 export function POST(context) {
-  return agentJson(context.request, env, (input) => sendApprovedReply(env, context.url.origin, context.params.ref, input));
+  return agentJson(context.request, env, (input) =>
+    sendApprovedReply(env, context.url.origin, context.params.ref, input),
+  );
 }

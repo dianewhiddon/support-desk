@@ -8,7 +8,9 @@ import { issueMagicLink, clientIp, userAgent, safeNextPath } from '../../lib/aut
 import { sendEmail, magicLinkEmail } from '../../lib/email.js';
 import { logEvent, gcAuthTables } from '../../lib/db.js';
 
-const MAX_PER_IP = 5;
+import { validEmail } from '../../lib/validate.js';
+
+import { allowLogin } from '../../lib/login-limits.js';
 
 async function verifyTurnstile(context, form) {
   const config = appConfig(env);
@@ -32,7 +34,11 @@ async function verifyTurnstile(context, form) {
 
 export async function POST(context) {
   let form = null;
-  try { form = await context.request.formData(); } catch { /* handled below */ }
+  try {
+    form = await context.request.formData();
+  } catch {
+    /* handled below */
+  }
   const email = String(form?.get('email') || '').trim();
   const next = safeNextPath(form?.get('next'));
   const redirect = (query) => {
@@ -43,20 +49,19 @@ export async function POST(context) {
 
   const cleanup = gcAuthTables(env.DB).catch(() => {});
   const cf = context.locals?.cfContext;
-  if (cf?.waitUntil) cf.waitUntil(cleanup); else await cleanup;
+  if (cf?.waitUntil) cf.waitUntil(cleanup);
+  else await cleanup;
 
-  if (!form || !email) return redirect('error=email');
+  if (!form || !validEmail(email)) return redirect('error=email');
   // Bots fill every field; people never see this one.
   if (String(form.get('website') || '')) return redirect('sent=1');
   const verification = await verifyTurnstile(context, form);
   if (verification !== 'verified') return redirect(`verification=${verification}`);
 
   const ip = clientIp(context);
-  const recent = ip
-    ? await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE type = 'login_attempt' AND ip = ? AND at > datetime('now', '-10 minutes')").bind(ip).first()
-    : { n: 0 };
+  const allowed = await allowLogin(env.DB, email, ip);
   await logEvent(env.DB, 'login_attempt', { ip, userAgent: userAgent(context) });
-  if (Number(recent?.n || 0) < MAX_PER_IP) {
+  if (allowed) {
     const link = await issueMagicLink(email, context.url.origin, next);
     if (link) {
       const delivery = await sendEmail(env, magicLinkEmail(env, link));

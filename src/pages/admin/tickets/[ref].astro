@@ -6,8 +6,15 @@ import JsonForms from '../../../components/admin/JsonForms.astro';
 import { env } from 'cloudflare:workers';
 import { appConfig } from '../../../lib/config.js';
 import {
-  getTicketByRef, getClientById, getSiteById, listAttachments, listMessages, openDraftForTicket,
-  listEmailDeliveries, listTicketsForClient, isClosed,
+  getTicketByRef,
+  getClientById,
+  getSiteById,
+  listAttachments,
+  listMessages,
+  openDraftForTicket,
+  listEmailDeliveries,
+  listTicketsForClient,
+  isClosed,
 } from '../../../lib/db.js';
 import { listReplyFiles } from '../../../lib/reply-files.js';
 import { listRequestHistory } from '../../../lib/workflow.js';
@@ -28,19 +35,49 @@ const [client, site, attachments, messages, draft, deliveries, related, history]
   listRequestHistory(env.DB, ticket.id),
 ]);
 const draftFiles = await listReplyFiles(env.DB, ticket.id, draft?.id);
+if (!client) return new Response('Request owner not found.', { status: 404 });
 const closed = isClosed(ticket);
 const clientLabel = client.name || client.email;
 const original = related.find((item) => item.id === ticket.duplicate_of_ticket_id);
 const duplicateChoices = related.filter((item) => item.id !== ticket.id && !item.duplicate_of_ticket_id);
 
-const DELIVERY_LABEL = { pending: 'Not sent yet', sending: 'Sending', accepted: 'Accepted by email provider', delivered: 'Delivered', delayed: 'Delayed', failed: 'Failed', bounced: 'Bounced', complained: 'Marked as spam' };
-const DELIVERY_TONE = { accepted: 'ok', delivered: 'ok', pending: 'warn', sending: 'warn', delayed: 'warn', failed: 'err', bounced: 'err', complained: 'err' };
-const KIND_LABEL = { reply: 'Reply to client', new_request_owner: 'New request to you', request_received_client: 'Receipt to client', client_reply_owner: 'Client reply to you', feedback_owner: 'Feedback flag to you' };
+const DELIVERY_LABEL: Record<string, string> = {
+  pending: 'Not sent yet',
+  sending: 'Sending',
+  accepted: 'Accepted by email provider',
+  delivered: 'Delivered',
+  delayed: 'Delayed',
+  failed: 'Failed',
+  bounced: 'Bounced',
+  complained: 'Marked as spam',
+};
+const DELIVERY_TONE: Record<string, string> = {
+  accepted: 'ok',
+  delivered: 'ok',
+  pending: 'warn',
+  sending: 'warn',
+  delayed: 'warn',
+  failed: 'err',
+  bounced: 'err',
+  complained: 'err',
+};
+const KIND_LABEL: Record<string, string> = {
+  reply: 'Reply to client',
+  new_request_owner: 'New request to you',
+  request_received_client: 'Receipt to client',
+  client_reply_owner: 'Client reply to you',
+  feedback_owner: 'Feedback flag to you',
+};
 const undelivered = deliveries.filter((d) => ['failed', 'bounced', 'complained'].includes(d.status)).length;
-const ACTION_LABEL = { resolve: 'Resolved', dismiss: 'Dismissed', reopen: 'Reopened', waiting: 'Marked waiting on client' };
-const REASON_LABEL = { duplicate: 'duplicate', not_needed: 'no longer needed' };
+const ACTION_LABEL: Record<string, string> = {
+  resolve: 'Resolved',
+  dismiss: 'Dismissed',
+  reopen: 'Reopened',
+  waiting: 'Marked waiting on client',
+};
+const REASON_LABEL: Record<string, string> = { duplicate: 'duplicate', not_needed: 'no longer needed' };
 
-const OUTCOMES = {
+const OUTCOMES: Record<string, string> = {
   send_reply: 'Reply sent. The client has been emailed.',
   save_note: 'Private note saved.',
   resolve: 'Request resolved.',
@@ -55,13 +92,22 @@ const OUTCOMES = {
   ai_draft: 'AI draft written. Read and edit it before you send.',
 };
 const result = Astro.url.searchParams.get('result');
-const resultIsError = ['email_failed', 'email_retry_failed'].includes(result);
+const resultIsError = ['email_failed', 'email_retry_failed'].includes(result || '');
 ---
+
 <Base title={ticket.ref}>
-  <a class="crumb" href="/admin">← Queue</a>
+  <a class="crumb" href="/admin">
+    ← Queue
+  </a>
   <div class="page-head">
     <div>
-      <p class="muted" style="margin:0;">{ticket.ref} · <a href={`/admin/clients/${client.id}`}>{client.company ? `${clientLabel}, ${client.company}` : clientLabel}</a>{site ? ` · ${site.label || site.url}` : ''}</p>
+      <p class="muted" style="margin:0;">
+        {ticket.ref} ·{' '}
+        <a href={`/admin/clients/${client.id}`}>
+          {client.company ? `${clientLabel}, ${client.company}` : clientLabel}
+        </a>
+        {site ? ` · ${site.label || site.url}` : ''}
+      </p>
       <h1>{ticket.title}</h1>
       <p class="hint">Sent {fmtDateTime(ticket.created_at, config.timeZone)}</p>
     </div>
@@ -71,27 +117,66 @@ const resultIsError = ['email_failed', 'email_retry_failed'].includes(result);
     </div>
   </div>
 
-  {result && <div class:list={['notice', resultIsError ? 'err' : 'ok']} role="status">{OUTCOMES[result] || 'Updated.'}</div>}
-  {undelivered > 0 && !resultIsError && <div class="notice err" role="status">{undelivered === 1 ? 'An email was not delivered.' : `${undelivered} emails were not delivered.`} <a href="#notifications">Review</a></div>}
+  {result && (
+    <div class:list={['notice', resultIsError ? 'err' : 'ok']} role="status">
+      {OUTCOMES[result] || 'Updated.'}
+    </div>
+  )}
+  {undelivered > 0 && !resultIsError && (
+    <div class="notice err" role="status">
+      {undelivered === 1 ? 'An email was not delivered.' : `${undelivered} emails were not delivered.`}{' '}
+      <a href="#notifications">Review</a>
+    </div>
+  )}
 
   <div class="split">
     <div>
-      <AdminThread ticket={ticket} messages={messages} attachments={attachments} deliveries={deliveries}
-        clientName={clientLabel} ownerName={config.ownerName} timeZone={config.timeZone} />
+      <AdminThread
+        ticket={ticket}
+        messages={messages}
+        attachments={attachments}
+        deliveries={deliveries}
+        clientName={clientLabel}
+        ownerName={config.ownerName}
+        timeZone={config.timeZone}
+      />
 
       {closed ? (
-        draft?.body && <details class="card" style="margin-top:20px;"><summary>Unsent draft</summary><p style="white-space:pre-line;">{draft.body}</p></details>
+        draft?.body && (
+          <details class="card" style="margin-top:20px;">
+            <summary>Unsent draft</summary>
+            <p style="white-space:pre-line;">{draft.body}</p>
+          </details>
+        )
       ) : (
         <section class="card" style="margin-top:20px;" aria-labelledby="reply-heading">
           <h2 id="reply-heading">Reply</h2>
-          <ReplyComposer ticket={ticket} draft={draft} files={draftFiles} clientLabel={clientLabel} aiEnabled={aiDraftsEnabled(env)} />
+          <ReplyComposer
+            ticket={ticket}
+            draft={draft}
+            files={draftFiles}
+            clientLabel={clientLabel}
+            aiEnabled={aiDraftsEnabled(env)}
+          />
           <details style="margin-top:16px;">
-            <summary style="cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-weight:600;">Add a private note</summary>
-            <form method="POST" action={`/api/admin/tickets/${ticket.ref}/reply`} data-json-form style="margin-top:10px;">
+            <summary style="cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-weight:600;">
+              Add a private note
+            </summary>
+            <form
+              method="POST"
+              action={`/api/admin/tickets/${ticket.ref}/reply`}
+              data-json-form
+              style="margin-top:10px;"
+            >
               <input type="hidden" name="ticket_revision" value={ticket.revision} />
               <input type="hidden" name="idempotency_key" value={crypto.randomUUID()} />
-              <div class="field"><label for="private-note">Private note (the client never sees it)</label><textarea id="private-note" name="body" required maxlength="12000" rows="4"></textarea></div>
-              <button class="btn btn-ghost" name="action" value="save_note">Save note</button>
+              <div class="field">
+                <label for="private-note">Private note (the client never sees it)</label>
+                <textarea id="private-note" name="body" required maxlength="12000" rows="4"></textarea>
+              </div>
+              <button class="btn btn-ghost" name="action" value="save_note">
+                Save note
+              </button>
               <p role="status" data-outcome></p>
             </form>
           </details>
@@ -102,13 +187,21 @@ const resultIsError = ['email_failed', 'email_retry_failed'].includes(result);
     <aside class="side">
       <section class="card" aria-labelledby="actions-heading">
         <h2 id="actions-heading">Request</h2>
-        {ticket.closure_reason && <p>Dismissed as {REASON_LABEL[ticket.closure_reason] || ticket.closure_reason}.</p>}
-        {original && <p>Covered by <a href={`/admin/tickets/${original.ref}`}>{original.ref}</a>.</p>}
+        {ticket.closure_reason && (
+          <p>Dismissed as {REASON_LABEL[ticket.closure_reason] || ticket.closure_reason}.</p>
+        )}
+        {original && (
+          <p>
+            Covered by <a href={`/admin/tickets/${original.ref}`}>{original.ref}</a>.
+          </p>
+        )}
         {ticket.resolution_note && <p style="white-space:pre-line;">{ticket.resolution_note}</p>}
         {closed ? (
           <form method="POST" action={`/api/admin/tickets/${ticket.ref}/status`} data-json-form>
             <input type="hidden" name="revision" value={ticket.revision} />
-            <button class="btn" name="action" value="reopen">Reopen request</button>
+            <button class="btn" name="action" value="reopen">
+              Reopen request
+            </button>
             <p role="status" data-outcome></p>
           </form>
         ) : (
@@ -116,21 +209,52 @@ const resultIsError = ['email_failed', 'email_retry_failed'].includes(result);
             <form method="POST" action={`/api/admin/tickets/${ticket.ref}/status`} data-json-form>
               <input type="hidden" name="revision" value={ticket.revision} />
               <div class="actions">
-                <button class="btn" name="action" value="resolve">Resolve</button>
-                {ticket.status !== 'waiting' && <button class="btn btn-ghost" name="action" value="waiting">Waiting on client</button>}
+                <button class="btn" name="action" value="resolve">
+                  Resolve
+                </button>
+                {ticket.status !== 'waiting' && (
+                  <button class="btn btn-ghost" name="action" value="waiting">
+                    Waiting on client
+                  </button>
+                )}
               </div>
               <p class="hint">These change the status only. No email is sent.</p>
               <p role="status" data-outcome></p>
             </form>
             <details style="margin-top:14px;">
-              <summary style="cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-weight:600;">Dismiss</summary>
+              <summary style="cursor:pointer;min-height:44px;display:inline-flex;align-items:center;font-weight:600;">
+                Dismiss
+              </summary>
               <form method="POST" action={`/api/admin/tickets/${ticket.ref}/status`} data-json-form>
                 <input type="hidden" name="revision" value={ticket.revision} />
                 <input type="hidden" name="action" value="dismiss" />
-                <div class="field"><label for="dismiss-reason">Reason</label><select id="dismiss-reason" name="reason" required><option value="not_needed">No longer needed</option><option value="duplicate">Duplicate</option></select></div>
-                <div class="field" data-duplicate-field><label for="duplicate-ref">Original request</label><select id="duplicate-ref" name="duplicate_ref"><option value="">Choose a request</option>{duplicateChoices.map((item) => <option value={item.ref}>{item.ref} · {item.title}</option>)}</select></div>
-                <div class="field"><label for="dismiss-note">Private note <span class="muted">(optional)</span></label><textarea id="dismiss-note" name="note" maxlength="4000" rows="3"></textarea></div>
-                <button class="btn btn-ghost" type="submit">Dismiss request</button>
+                <div class="field">
+                  <label for="dismiss-reason">Reason</label>
+                  <select id="dismiss-reason" name="reason" required>
+                    <option value="not_needed">No longer needed</option>
+                    <option value="duplicate">Duplicate</option>
+                  </select>
+                </div>
+                <div class="field" data-duplicate-field>
+                  <label for="duplicate-ref">Original request</label>
+                  <select id="duplicate-ref" name="duplicate_ref">
+                    <option value="">Choose a request</option>
+                    {duplicateChoices.map((item) => (
+                      <option value={item.ref}>
+                        {item.ref} · {item.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="dismiss-note">
+                    Private note <span class="muted">(optional)</span>
+                  </label>
+                  <textarea id="dismiss-note" name="note" maxlength="4000" rows="3"></textarea>
+                </div>
+                <button class="btn btn-ghost" type="submit">
+                  Dismiss request
+                </button>
                 <p role="status" data-outcome></p>
               </form>
             </details>
@@ -144,13 +268,23 @@ const resultIsError = ['email_failed', 'email_retry_failed'].includes(result);
           {deliveries.map((delivery) => (
             <div style="padding:10px 0;border-top:1px solid var(--line-soft);overflow-wrap:anywhere;">
               <strong style="font-size:14px;">{KIND_LABEL[delivery.kind] || delivery.kind}</strong>
-              <div class="hint" style="margin:2px 0 6px;">{delivery.recipient_email}</div>
-              <span class:list={['delivery-tag', DELIVERY_TONE[delivery.status]]}>{DELIVERY_LABEL[delivery.status] || delivery.status}</span>
+              <div class="hint" style="margin:2px 0 6px;">
+                {delivery.recipient_email}
+              </div>
+              <span class:list={['delivery-tag', DELIVERY_TONE[delivery.status]]}>
+                {DELIVERY_LABEL[delivery.status] || delivery.status}
+              </span>
               {delivery.last_error && <p class="field-error">{delivery.last_error}</p>}
               {['pending', 'failed', 'sending'].includes(delivery.status) && (
-                <form method="POST" action={`/api/admin/tickets/${ticket.ref}/email-retry`} style="margin-top:8px;">
+                <form
+                  method="POST"
+                  action={`/api/admin/tickets/${ticket.ref}/email-retry`}
+                  style="margin-top:8px;"
+                >
                   <input type="hidden" name="delivery_id" value={delivery.id} />
-                  <button class="btn btn-ghost" type="submit">{delivery.status === 'sending' ? 'Check again' : 'Retry email'}</button>
+                  <button class="btn btn-ghost" type="submit">
+                    {delivery.status === 'sending' ? 'Check again' : 'Retry email'}
+                  </button>
                 </form>
               )}
             </div>
@@ -162,7 +296,12 @@ const resultIsError = ['email_failed', 'email_retry_failed'].includes(result);
         <details class="card">
           <summary style="cursor:pointer;font-weight:600;">Status history</summary>
           {history.map((entry) => (
-            <p class="hint">{fmtDateTime(entry.at, config.timeZone)} · {ACTION_LABEL[entry.data.action] || 'Updated'}{entry.data.reason ? ` (${REASON_LABEL[entry.data.reason] || entry.data.reason})` : ''}{entry.data.duplicateRef ? ` · ${entry.data.duplicateRef}` : ''}{entry.data.note ? ` · ${entry.data.note}` : ''}</p>
+            <p class="hint">
+              {fmtDateTime(entry.at, config.timeZone)} · {ACTION_LABEL[entry.data.action || ''] || 'Updated'}
+              {entry.data.reason ? ` (${REASON_LABEL[entry.data.reason] || entry.data.reason})` : ''}
+              {entry.data.duplicateRef ? ` · ${entry.data.duplicateRef}` : ''}
+              {entry.data.note ? ` · ${entry.data.note}` : ''}
+            </p>
           ))}
         </details>
       )}

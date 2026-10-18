@@ -1,52 +1,57 @@
 # Support Desk
 
-Your clients stop sending change requests to your inbox. They sign in with an emailed link, send a request with photos, voice notes and files, and follow the whole conversation in one place. You work every request from one queue, urgent first.
+A self-hosted support desk for freelancers and small studios. Clients send requests with files, links and voice notes. You manage the queue, keep private notes, and reply from one conversation.
 
-This is the support system I run for my own clients at Sway Rise Creative, rebuilt as a clean starter for Rabbit Hole members. It runs on Cloudflare (Workers, D1, R2) with Resend for email. Most small studios stay inside the free tiers.
+Built by [Diane Whiddon](https://github.com/dianewhiddon), adapted from the support system she uses at Sway Rise Creative. This standalone edition contains no client records or connections to that system. Licensed under [MIT](LICENSE.md), including commercial use.
 
-## What your clients get
+![Owner queue with fictional requests](docs/screenshots/queue.png)
 
-- **Sign-in without passwords.** They enter their email and get a one-time link. Nobody you haven't added can sign in.
-- **One form for changes and questions.** They can pick the website and page, flag an emergency, record a voice note in the browser, and attach images, PDFs, audio, Word or text files.
-- **The full conversation on every request,** with your replies, your files and their replies in order. Unsent words stay in their browser if they close the tab.
-- **A receipt for every request.** An email and the request page confirm it arrived and say what happens next.
-- **A one-tap check when you finish.** "Yes, all good" or "Something is off," which reopens the request and emails you.
+## What it does
 
-## What you get
+- **Client sign-in by email.** Only addresses you add can sign in. Links expire after 30 minutes and work once, with a confirmation step to protect them from email scanners.
+- **Requests and conversations.** Changes, questions and urgent requests, with up to six attachments and browser-recorded voice notes. Clients see their own requests and published replies.
+- **One owner queue.** Needs you, Waiting on client, History. Search, urgency, saved drafts, private notes, reply attachments and resolution history.
+- **Recoverable notifications.** Request and reply emails are recorded with their messages. Delivery receipts appear in the desk; retry failures from the saved notification.
+- **Optional AI drafts.** Ask Claude for a draft, review it, then send. AI is off by default. It has no tools and cannot edit a website.
+- **Optional agent API.** A trusted coding agent can read requests, save drafts and notes, and send a saved reply. The [agent guide](docs/AGENTS.md) explains its authority and review requirements.
+- **Light and dark themes.** Neutral surfaces, gold actions, keyboard navigation and responsive layouts. Change the theme in one stylesheet.
 
-- **AI reply drafts when you ask.** Draft with AI writes a reply in your voice into your reply editor. Nothing drafts a reply when a request arrives, because the reply belongs after the work. Your voice comes from one text file; each client's business, offers, voice and history come from their notes. The drafts are as good as those notes.
-- **A queue sorted the way the work happens:** Needs you, Waiting on client, History. Urgent requests sit at the top. Search covers clients, references and request text.
-- **A reply editor with saved drafts and private files.** Attach Word, PowerPoint, Excel, PDF or images; they stay private until you send. Send and wait for the client, or send and resolve in one click.
-- **Private notes** on any request that clients never see.
-- **Resolve, dismiss (duplicate or no longer needed), mark waiting, reopen,** with a status history on each request.
-- **Email you can trust.** Every notification is recorded, sent once, and shows whether it was delivered, bounced or failed, with a retry button.
-- **Client management:** add clients, their websites, their time zones, and turn sign-in off without losing their history.
+[See the client request form](docs/screenshots/client-request.png).
 
-## Let your AI agent work the queue
+## Try it locally
 
-The agent API lets Claude Code read open requests, download the files, make the change in the client's site, and leave you a reply draft and a private note. Approve the draft in chat and the agent sends exactly that draft and resolves the request, or send it from the desk yourself. [docs/AUTO-FIX-GUIDE.md](docs/AUTO-FIX-GUIDE.md) is how I run mine, through to fixes that release themselves.
+Use Node **22.12 or newer** (Node 24 LTS recommended) and npm. The lockfile is included.
 
-## Built to be hard to break
-
-- Every uploaded file is checked by its contents, not its name. Office files with macros are refused.
-- Clients can only open their own requests and files. Private notes and unsent draft files never reach them.
-- Double-clicks, resubmitted forms and two open tabs can't create duplicates or overwrite newer work.
-- Sign-in links work once, expire in 30 minutes, and are rate limited. Turnstile is one setting away if you want it.
-- Your agent can send only the exact draft you approved, and a repeated call never sends it twice.
-- AI drafts never overwrite a reply you are writing, never see your private notes, and treat client text as data, so a message telling the AI what to do produces a plain acknowledgement instead.
-
-## Get started
-
-[docs/SETUP.md](docs/SETUP.md) takes you from fork to a live desk on your own domain.
-
-## Make it better with us
-
-Improvements come back here as pull requests. [CONTRIBUTING.md](CONTRIBUTING.md) has the conventions, and the [member license](LICENSE.md) makes it part of the deal.
-
-## Tests
-
-```bash
-npm test
+```sh
+npm ci
+npm run build
+npm run demo
 ```
 
-The tests run the real database schema in memory and cover requests, replies, files, email delivery and access rules.
+Open **http://127.0.0.1:8899/admin** for the queue or **http://127.0.0.1:8899/dashboard** for the client view. This read-only demo uses fictional data in a temporary local database. It cannot send email, call AI or accept changes. Stop it with Ctrl+C.
+
+For working forms and sign-in, follow [local setup](docs/SETUP.md). No cloud credentials are required to run the local app or its tests.
+
+## Host your own
+
+The stack is **Astro + Cloudflare Workers**, **D1** for records, **private R2** for files, and **Resend** for email. You need your own accounts and domain. Anthropic is optional. Provider charges and quotas depend on your usage; this repository includes no hosted service.
+
+[Setup and deployment](docs/SETUP.md) covers configuration, first-admin access, database migrations, email verification and GitHub main → Workers Builds. [Operations](docs/OPERATIONS.md) covers backups, recovery, updates and retention.
+
+## Development
+
+```sh
+npm run verify
+```
+
+Runs lint, formatting checks, behavioral tests, Astro checks and the production build. Tests use the real SQL migrations with an in-memory SQLite adapter and an R2 test double. They exercise access boundaries, file validation, stale revisions, duplicate submissions, authentication and email failures. [Architecture](docs/ARCHITECTURE.md) maps the modules and tradeoffs.
+
+## Security and limits
+
+This is a single-business desk, not a multi-tenant SaaS. Every administrator and agent token has access to all clients. Files are checked structurally and served with restrictive headers; this is **not antivirus scanning**. Review downloaded files before opening them. AI output is untrusted and must be reviewed. The app cannot prove that an agent obtained human approval in a separate chat.
+
+There is no hosted auto-fix executor, billing, SLA scheduler, voice transcription or analytics suite. See [security and privacy](SECURITY.md) before collecting real client information.
+
+## Contribute
+
+Issues and focused pull requests are welcome. Contributions are voluntary under MIT. Start with [CONTRIBUTING.md](CONTRIBUTING.md); report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).

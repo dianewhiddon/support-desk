@@ -1,5 +1,5 @@
 // @ts-check
-import { defineConfig, sessionDrivers } from 'astro/config';
+import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
 
 export default defineConfig({
@@ -8,5 +8,5 @@ export default defineConfig({
   adapter: cloudflare({ imageService: 'passthrough' }),
   // The app keeps its own cookie sessions in D1. An explicit driver stops the
   // adapter from adding a SESSION KV binding to every deploy.
-  session: { driver: sessionDrivers.memory() },
+  session: { driver: { entrypoint: 'unstorage/drivers/memory' } },
 });

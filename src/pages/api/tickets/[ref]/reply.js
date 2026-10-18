@@ -10,9 +10,16 @@ export async function POST(context) {
   if (!ticket || ticket.client_id !== client.id) return context.redirect('/dashboard', 303);
   const back = (state) => context.redirect(`/tickets/${ticket.ref}?reply=${state}#reply`, 303);
   let form;
-  try { form = await context.request.formData(); } catch { return back('error'); }
+  try {
+    form = await context.request.formData();
+  } catch {
+    return back('error');
+  }
   const result = await addClientReply(env, {
-    client, ticket, files: formFiles(form), origin: context.url.origin,
+    client,
+    ticket,
+    files: formFiles(form),
+    origin: context.url.origin,
     input: { idempotencyKey: form.get('idempotency_key'), body: form.get('body'), links: form.get('links') },
   });
   if (!result.ok) return back('error');

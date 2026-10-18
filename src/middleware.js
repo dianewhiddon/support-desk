@@ -6,25 +6,16 @@
    of the SameSite=Lax session cookie. Webhooks verify their own signature. */
 import { defineMiddleware } from 'astro:middleware';
 import { getCurrentSession } from './lib/auth.js';
+import { allowedOrigin } from './lib/http-security.js';
 
 const CLIENT_PREFIXES = ['/dashboard', '/tickets', '/api/tickets', '/api/files', '/files'];
-const CROSS_SITE_ALLOWED = ['/api/webhooks/'];
 
 const matches = (path, prefixes) =>
   prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 
-function sameOrigin(context) {
-  const origin = context.request.headers.get('origin');
-  // Browsers send Origin on cross-site form posts and fetches. A missing header
-  // means a same-origin navigation or a non-browser client without a cookie.
-  return !origin || origin === context.url.origin;
-}
-
 export const onRequest = defineMiddleware(async (context, next) => {
   const path = context.url.pathname;
-  const method = context.request.method;
-
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !CROSS_SITE_ALLOWED.some((p) => path.startsWith(p)) && !sameOrigin(context)) {
+  if (!allowedOrigin(context.request)) {
     return new Response('Forbidden', { status: 403 });
   }
 

@@ -4,7 +4,11 @@ import { changeRequestState } from '../../../../../lib/workflow.js';
 
 export async function POST(context) {
   let form;
-  try { form = await context.request.formData(); } catch { return Response.json({ ok: false, error: 'The form could not be read.' }, { status: 400 }); }
+  try {
+    form = await context.request.formData();
+  } catch {
+    return Response.json({ ok: false, error: 'The form could not be read.' }, { status: 400 });
+  }
   const result = await changeRequestState(env.DB, context.params.ref, {
     action: String(form.get('action') || ''),
     expectedRevision: Number(form.get('revision')),
@@ -13,7 +17,12 @@ export async function POST(context) {
     duplicateRef: String(form.get('duplicate_ref') || ''),
   });
   return Response.json(
-    { ...result, redirect: result.ok ? `/admin/tickets/${encodeURIComponent(context.params.ref)}?result=${result.action}` : null },
+    {
+      ...result,
+      redirect: result.ok
+        ? `/admin/tickets/${encodeURIComponent(context.params.ref)}?result=${result.action}`
+        : null,
+    },
     { status: result.status },
   );
 }

@@ -3,6 +3,14 @@
    publishes the saved draft and moves the request on. Files upload as you pick
    them, after the draft is saved, so an upload always belongs to a draft. */
 import { parseStoredDate } from '../../lib/render.js';
+import type { Ticket, Draft, Attachment } from '../../lib/models';
+interface Props {
+  ticket: Ticket;
+  draft?: Draft | null;
+  files?: Attachment[];
+  clientLabel: string;
+  aiEnabled?: boolean;
+}
 const { ticket, draft = null, files = [], clientLabel, aiEnabled = false } = Astro.props;
 // A draft still "pending" after two minutes was cut off; treat it as failed.
 const pendingAt = parseStoredDate(draft?.updated_at);
@@ -10,10 +18,29 @@ const writing = draft?.status === 'pending' && pendingAt && Date.now() - pending
 const failed = draft?.status === 'error' || (draft?.status === 'pending' && !writing);
 const aiReady = draft?.status === 'ready' && draft?.source === 'ai' && draft?.body;
 ---
-{writing && <div class="notice warn" role="status">Claude is writing a draft. Reload in a moment to see it.</div>}
-{failed && aiEnabled && <div class="notice err" role="status">The AI draft did not finish{draft?.error ? `: ${draft.error}` : '.'} Use Draft with AI to try again.</div>}
-{aiReady && <div class="notice" role="status">Drafted by AI. Read and edit it before you send.</div>}
-<form class="composer" method="POST" action={`/api/admin/tickets/${ticket.ref}/reply`} data-json-form data-reply-draft>
+
+{writing && (
+  <div class="notice warn" role="status">
+    Claude is writing a draft. Reload in a moment to see it.
+  </div>
+)}
+{failed && aiEnabled && (
+  <div class="notice err" role="status">
+    The AI draft did not finish{draft?.error ? `: ${draft.error}` : '.'} Use Draft with AI to try again.
+  </div>
+)}
+{aiReady && (
+  <div class="notice" role="status">
+    Drafted by AI. Read and edit it before you send.
+  </div>
+)}
+<form
+  class="composer"
+  method="POST"
+  action={`/api/admin/tickets/${ticket.ref}/reply`}
+  data-json-form
+  data-reply-draft
+>
   <input type="hidden" name="idempotency_key" value={crypto.randomUUID()} />
   <input type="hidden" name="ticket_revision" value={ticket.revision} />
   <input type="hidden" name="draft_id" value={draft?.id || ''} />
@@ -25,30 +52,86 @@ const aiReady = draft?.status === 'ready' && draft?.source === 'ai' && draft?.bo
 
   <div class="field" data-reply-files data-endpoint={`/api/admin/tickets/${ticket.ref}/attachments`}>
     <label for="reply-files">Attach files</label>
-    <input id="reply-files" type="file" multiple accept=".pptx,.docx,.xlsx,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md" data-file-picker aria-describedby="reply-files-help" />
-    <p class="hint" id="reply-files-help">Word, PowerPoint, Excel, PDF, images or text. Up to 6 files, 15 MB each. They stay private until you send.</p>
-    <button type="button" class="btn btn-ghost" data-retry-upload hidden>Retry upload</button>
+    <input
+      id="reply-files"
+      type="file"
+      multiple
+      accept=".pptx,.docx,.xlsx,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md"
+      data-file-picker
+      aria-describedby="reply-files-help"
+    />
+    <p class="hint" id="reply-files-help">
+      Word, PowerPoint, Excel, PDF, images or text. Up to 6 files, 15 MB each. They stay private until you
+      send.
+    </p>
+    <button type="button" class="btn btn-ghost" data-retry-upload hidden>
+      Retry upload
+    </button>
     <ul class="file-rows" data-file-list>
       {files.map((file) => (
-        <li><a class="fname" href={`/api/admin/files/${file.id}`}>{file.filename}</a><span class="fsize">{(file.size / 1048576).toFixed(1)} MB</span><button type="button" class="fremove" data-remove-file={file.id} aria-label={`Remove ${file.filename}`}>×</button></li>
+        <li>
+          <a class="fname" href={`/api/admin/files/${file.id}`}>
+            {file.filename}
+          </a>
+          <span class="fsize">{(file.size / 1048576).toFixed(1)} MB</span>
+          <button
+            type="button"
+            class="fremove"
+            data-remove-file={file.id}
+            aria-label={`Remove ${file.filename}`}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path d="m6 6 12 12M6 18 18 6" />
+            </svg>
+          </button>
+        </li>
       ))}
     </ul>
   </div>
 
   <div class="actions">
-    <button class="btn btn-ghost" type="submit" name="action" value="save_draft">Save draft</button>
-    <button class="btn btn-accent" type="submit" name="action" value="send_reply" data-after="waiting">Send and wait for reply</button>
-    <button class="btn" type="submit" name="action" value="send_reply" data-after="done">Send and resolve</button>
+    <button class="btn btn-ghost" type="submit" name="action" value="save_draft">
+      Save draft
+    </button>
+    <button class="btn btn-accent" type="submit" name="action" value="send_reply" data-after="waiting">
+      Send and wait for reply
+    </button>
+    <button class="btn" type="submit" name="action" value="send_reply" data-after="done">
+      Send and resolve
+    </button>
   </div>
   <input type="hidden" name="after" value="waiting" />
-  <p class="hint">The client gets an email saying you replied, with a link back here. The message itself stays on the desk.</p>
-  <p role="status" data-outcome>{draft?.body && draft?.source === 'owner' ? 'Draft saved.' : ''}</p>
+  <p class="hint">
+    The client gets an email saying you replied, with a link back here. The message itself stays on the desk.
+  </p>
+  <p role="status" data-outcome>
+    {draft?.body && draft?.source === 'owner' ? 'Draft saved.' : ''}
+  </p>
 </form>
 {aiEnabled && (
-  <form method="POST" action={`/api/admin/tickets/${ticket.ref}/ai-draft`} data-json-form data-ai-draft style="margin-top:12px;">
+  <form
+    method="POST"
+    action={`/api/admin/tickets/${ticket.ref}/ai-draft`}
+    data-json-form
+    data-ai-draft
+    style="margin-top:12px;"
+  >
     <input type="hidden" name="draft_revision" value={draft?.revision ?? ''} />
-    <button class="btn btn-ghost" type="submit">{draft?.body ? 'Replace with a new AI draft' : 'Draft with AI'}</button>
-    <p class="hint">Takes up to half a minute. Claude reads the request and the conversation, never your private notes.</p>
+    <button class="btn btn-ghost" type="submit">
+      {draft?.body ? 'Replace with a new AI draft' : 'Draft with AI'}
+    </button>
+    <p class="hint">
+      Takes up to half a minute. Claude reads the request and the conversation, never your private notes.
+    </p>
     <p role="status" data-outcome></p>
   </form>
 )}
@@ -66,23 +149,42 @@ const aiReady = draft?.status === 'ready' && draft?.source === 'ai' && draft?.bo
     let draftSaved = false;
 
     const refresh = (result: any) => {
-      if (result.draft) { field('draft_id').value = String(result.draft.id); field('draft_revision').value = String(result.draft.revision); }
-      if (result.ticket_revision !== undefined) field('ticket_revision').value = String(result.ticket_revision);
+      if (result.draft) {
+        field('draft_id').value = String(result.draft.id);
+        field('draft_revision').value = String(result.draft.revision);
+      }
+      if (result.ticket_revision !== undefined)
+        field('ticket_revision').value = String(result.ticket_revision);
       if (!result.attachments) return;
-      list.replaceChildren(...result.attachments.map((file: any) => {
-        const row = document.createElement('li');
-        const link = Object.assign(document.createElement('a'), { className: 'fname', href: `/api/admin/files/${file.id}`, textContent: file.filename });
-        const size = Object.assign(document.createElement('span'), { className: 'fsize', textContent: `${(file.size / 1048576).toFixed(1)} MB` });
-        const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'fremove', textContent: '×' });
-        remove.dataset.removeFile = String(file.id);
-        remove.setAttribute('aria-label', `Remove ${file.filename}`);
-        row.append(link, size, remove);
-        return row;
-      }));
+      list.replaceChildren(
+        ...result.attachments.map((file: any) => {
+          const row = document.createElement('li');
+          const link = Object.assign(document.createElement('a'), {
+            className: 'fname',
+            href: `/api/admin/files/${file.id}`,
+            textContent: file.filename,
+          });
+          const size = Object.assign(document.createElement('span'), {
+            className: 'fsize',
+            textContent: `${(file.size / 1048576).toFixed(1)} MB`,
+          });
+          const remove = Object.assign(document.createElement('button'), {
+            type: 'button',
+            className: 'fremove',
+            innerHTML:
+              '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>',
+          });
+          remove.dataset.removeFile = String(file.id);
+          remove.setAttribute('aria-label', `Remove ${file.filename}`);
+          row.append(link, size, remove);
+          return row;
+        }),
+      );
     };
     const call = async (url: string, method: string, body: FormData) => {
       const response = await fetch(url, { method, body, headers: { accept: 'application/json' } });
-      if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Your sign-in could not be confirmed. Your draft is still here.');
+      if (!response.headers.get('content-type')?.includes('application/json'))
+        throw new Error('Your sign-in could not be confirmed. Your draft is still here.');
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || 'The file could not be saved.');
       refresh(result);
@@ -96,39 +198,54 @@ const aiReady = draft?.status === 'ready' && draft?.source === 'ai' && draft?.bo
     const busy = async (work: () => Promise<void>) => {
       if (form.dataset.busy === 'true') return;
       form.dataset.busy = 'true';
-      const controls = Array.from(form.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>('button,input,textarea'));
+      const controls = Array.from(
+        form.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement>(
+          'button,input,textarea',
+        ),
+      );
       const before = controls.map((control) => control.disabled);
-      controls.forEach((control) => { control.disabled = true; });
-      try { await work(); }
-      catch (error) { notice.textContent = error instanceof Error ? error.message : 'The file could not be saved.'; retry.hidden = !pending.length; }
-      finally { controls.forEach((control, i) => { control.disabled = before[i]; }); form.dataset.busy = 'false'; }
+      controls.forEach((control) => {
+        control.disabled = true;
+      });
+      try {
+        await work();
+      } catch (error) {
+        notice.textContent = error instanceof Error ? error.message : 'The file could not be saved.';
+        retry.hidden = !pending.length;
+      } finally {
+        controls.forEach((control, i) => {
+          control.disabled = before[i];
+        });
+        form.dataset.busy = 'false';
+      }
     };
     // Save the draft first, then upload; a failed upload retries before any
     // further save, so a lost response can never leave the draft revision stale.
-    const upload = () => busy(async () => {
-      if (!draftSaved) {
-        const data = draftFields();
-        data.set('body', form.querySelector<HTMLTextAreaElement>('[name=body]')!.value);
-        data.set('action', 'save_draft');
-        data.set('for_files', '1');
-        notice.textContent = 'Saving draft…';
-        await call(form.getAttribute('action')!, 'POST', data);
-        form.dataset.dirty = 'false';
-        draftSaved = true;
-      }
-      for (; index < pending.length; index += 1) {
-        const { file, key } = pending[index];
-        notice.textContent = `Attaching ${file.name}…`;
-        const data = draftFields();
-        data.set('idempotency_key', key);
-        data.set('file', file);
-        await call(panel.dataset.endpoint!, 'POST', data);
-      }
-      pending = [];
-      picker.value = '';
-      retry.hidden = true;
-      notice.textContent = 'Files attached. Draft saved.';
-    });
+    const upload = () =>
+      busy(async () => {
+        if (!draftSaved) {
+          const data = draftFields();
+          data.set('body', form.querySelector<HTMLTextAreaElement>('[name=body]')!.value);
+          data.set('action', 'save_draft');
+          data.set('for_files', '1');
+          notice.textContent = 'Saving draft…';
+          await call(form.getAttribute('action')!, 'POST', data);
+          form.dataset.dirty = 'false';
+          draftSaved = true;
+        }
+        for (; index < pending.length; index += 1) {
+          const { file, key } = pending[index];
+          notice.textContent = `Attaching ${file.name}…`;
+          const data = draftFields();
+          data.set('idempotency_key', key);
+          data.set('file', file);
+          await call(panel.dataset.endpoint!, 'POST', data);
+        }
+        pending = [];
+        picker.value = '';
+        retry.hidden = true;
+        notice.textContent = 'Files attached. Draft saved.';
+      });
     picker.addEventListener('change', () => {
       pending = Array.from(picker.files || []).map((file) => ({ file, key: crypto.randomUUID() }));
       index = 0;
@@ -148,7 +265,9 @@ const aiReady = draft?.status === 'ready' && draft?.source === 'ai' && draft?.bo
       });
     });
     form.querySelectorAll<HTMLButtonElement>('[data-after]').forEach((button) => {
-      button.addEventListener('click', () => { field('after').value = button.dataset.after!; });
+      button.addEventListener('click', () => {
+        field('after').value = button.dataset.after!;
+      });
     });
   });
 </script>

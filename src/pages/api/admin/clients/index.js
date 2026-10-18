@@ -5,15 +5,23 @@ import { validEmail } from '../../../../lib/validate.js';
 
 export async function POST(context) {
   let form;
-  try { form = await context.request.formData(); } catch { return context.redirect('/admin/clients?error=email', 303); }
+  try {
+    form = await context.request.formData();
+  } catch {
+    return context.redirect('/admin/clients?error=email', 303);
+  }
   const email = normalizeEmail(form.get('email'));
   if (!validEmail(email)) return context.redirect('/admin/clients?error=email', 303);
   let id;
   try {
     id = await createClient(env.DB, {
       email,
-      name: String(form.get('name') || '').trim().slice(0, 120),
-      company: String(form.get('company') || '').trim().slice(0, 160),
+      name: String(form.get('name') || '')
+        .trim()
+        .slice(0, 120),
+      company: String(form.get('company') || '')
+        .trim()
+        .slice(0, 160),
     });
   } catch {
     return context.redirect('/admin/clients?error=exists', 303);

@@ -2,6 +2,13 @@
 import { messageLinks } from '../lib/render.js';
 const { body } = Astro.props;
 ---
-{messageLinks(body).map((part) => part.href
-  ? <a href={part.href} target="_blank" rel="noopener noreferrer">{part.text}</a>
-  : part.text)}
+
+{messageLinks(body).map((part) =>
+  part.href ? (
+    <a href={part.href} target="_blank" rel="noopener noreferrer">
+      {part.text}
+    </a>
+  ) : (
+    part.text
+  ),
+)}

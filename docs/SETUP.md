@@ -1,103 +1,89 @@
 # Setup
 
-You need a Cloudflare account, a Resend account, a domain on Cloudflare DNS, and Node 22 or newer.
+## Local development
 
-## 1. Fork and run it locally
+Install Node 24 LTS (minimum 22.12), npm and Git. Clone your fork or extract the release source archive, then open that directory in a terminal.
 
-Fork this repository to your own GitHub account (keep it private), then:
+```sh
+npm ci
+```
 
-```bash
-git clone https://github.com/YOUR_GITHUB/support-desk-starter.git
-cd support-desk-starter
-npm install
-cp .dev.vars.example .dev.vars
+Copy `.dev.vars.example` to `.dev.vars`. On macOS/Linux use `cp .dev.vars.example .dev.vars`; on PowerShell use `Copy-Item .dev.vars.example .dev.vars`. Leave keys empty for local work. The file is ignored by Git.
+
+```sh
 npm run db:local
 npm run db:seed
 npm run dev
 ```
 
-Open http://localhost:4321 and sign in as `sarah@example.com` (a seeded test client) or as the `ADMIN_EMAILS` address in `wrangler.jsonc`. Without a Resend key, no email goes out and the sign-in link prints in your terminal instead.
+Open **http://localhost:4321/login**. Enter `sarah@example.com` for the fictional client or `you@YOUR_DOMAIN.com` for the starter admin. Without a Resend key, the development server prints the sign-in email locally. Open its link, then choose **Continue**. The production build never prints these links.
 
-## 2. Make it yours
+Local records and uploads stay in `.wrangler/`. The seed script is for local development only. Do not seed a real desk or copy this directory into production. Use `npm run demo` after a build for a separate read-only fictional preview.
 
-Edit the `vars` block in `wrangler.jsonc`:
+## Configure your business
 
-| Setting | What it does |
-|---|---|
-| `BUSINESS_NAME` | Header, page titles and emails |
-| `OWNER_NAME` | The name clients see: "With Kyle", "Kyle replied" |
-| `OWNER_EMAIL` | Where new requests and client replies are emailed |
-| `ADMIN_EMAILS` | Comma-separated addresses that sign in to the admin queue |
-| `EMAIL_FROM` | Sender, on a domain verified in Resend |
-| `EMAIL_NO_REPLY` | Reply-to on client notifications |
-| `DEFAULT_TIME_ZONE` | Used for any client without their own time zone |
-| `TICKET_PREFIX` | Request references, such as `SUP-2026-0001` |
-| `TURNSTILE_SITE_KEY` | Optional bot check on the sign-in form |
+Set these public configuration values in `wrangler.jsonc` before hosting:
 
-Colors live as tokens at the top of `src/styles/desk.css`, with a dark-mode set below them. Email colors are at the top of `src/lib/email-layout.js`.
+| Value                         | Purpose                                                  |
+| ----------------------------- | -------------------------------------------------------- |
+| `name`                        | Unique Worker name in your Cloudflare account            |
+| `routes`                      | Your support domain, such as `support.example.com`       |
+| `DB.database_id`              | Your new D1 database ID                                  |
+| `UPLOADS.bucket_name`         | Your private R2 bucket name                              |
+| `BUSINESS_NAME`, `OWNER_NAME` | Names shown in pages and notifications                   |
+| `OWNER_EMAIL`                 | Recipient of new-request and client-reply notices        |
+| `ADMIN_EMAILS`                | Comma-separated admin addresses; these grant full access |
+| `EMAIL_FROM`                  | Sender on your Resend-verified domain                    |
+| `EMAIL_NO_REPLY`              | Reply-to for notifications; replies belong on the desk   |
+| `DEFAULT_TIME_ZONE`           | IANA name, for example `America/Chicago`                 |
+| `TICKET_PREFIX`               | Short alphanumeric reference prefix                      |
+| `TURNSTILE_SITE_KEY`          | Optional public key for your domain                      |
+| `AI_DRAFTS`                   | `off` by default; `on` enables configured AI drafts      |
+| `AI_MODEL`                    | Optional model override; default `claude-haiku-5-5`      |
 
-## 3. Create the Cloudflare resources
+Gold/neutral colors are tokens in `src/styles/desk.css`; email colors are in `src/lib/email-layout.js`. The app contains no fixed business logo. Set your own first-admin email before deployment; clients cannot grant themselves administrator access.
 
-```bash
-npx wrangler d1 create support-desk
-npx wrangler r2 bucket create support-desk-uploads
-```
+## Create an isolated deployment
 
-Paste the D1 `database_id` into `wrangler.jsonc`, then create the tables in production:
+Use your own Cloudflare, GitHub and Resend accounts. Create a private R2 bucket and a new D1 database in Cloudflare; do not enable public R2 access. Put their binding values in the config, commit and push your fork's `main`.
 
-```bash
+Apply the committed migrations to that exact database through your authorized infrastructure workflow. If using Wrangler in your own environment, the command is:
+
+```sh
 npx wrangler d1 migrations apply DB --remote
 ```
 
-Set your domain in `routes` (for example `support.yourstudio.com`).
+Check the selected account, database ID and migration list before confirming. Never run the local seed against this database. Migrations and code deployment are separate actions.
 
-## 4. Connect email
+Connect the repository's `main` branch to **Cloudflare Workers Builds**. Configure the build command as `npm ci && npm run verify` and the platform deploy command as `npx wrangler deploy`. That deploy command belongs in Workers Builds; normal releases are commits pushed to main. Confirm the resulting build uses the exact commit you pushed.
 
-`EMAIL_FROM` has to be on a domain verified in Resend.
+Before inviting clients, configure secrets in the Worker settings and verify email. Follow [Cloudflare's Git integration documentation](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/) for the current account-connection flow.
 
-```bash
-npx wrangler secret put RESEND_API_KEY
-npx wrangler secret put RESEND_WEBHOOK_SECRET
-```
+## Email
 
-The webhook secret comes from a Resend webhook at `https://YOUR_DESK_DOMAIN/api/webhooks/resend` subscribed to sent, delivered, delivery delayed, bounced, complained and failed. It's what turns "Accepted" into "Delivered" or "Bounced" on each request.
+Verify your sender domain in Resend and configure `RESEND_API_KEY` as a Worker secret. Create a Resend webhook at `https://YOUR_DESK_DOMAIN/api/webhooks/resend` for `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained` and `email.failed`. Store its signing secret as `RESEND_WEBHOOK_SECRET`.
 
-## 5. Turn on AI reply drafts
+Keep secrets out of `wrangler.jsonc`, Git, screenshots and issue reports. Production without a Resend key cannot deliver sign-in links. The same generic sign-in acknowledgement is shown whether an address exists or not; inspect your provider/configuration if a known admin link does not arrive.
 
-```bash
-npx wrangler secret put ANTHROPIC_API_KEY
-```
+## Optional services
 
-Drafts are written when you click **Draft with AI** in the reply editor. `src/ai/reply-voice.txt` is added to every draft prompt; what ships there is a placeholder. **Client notes for AI drafts** on each client's page feed every draft for that client, and the drafts are only as specific as those notes.
+**Turnstile:** create a widget for your support domain, set its public site key and store `TURNSTILE_SECRET`. A configured site key without a working secret fails closed. Test an actual login before inviting clients.
 
-Drafts use `claude-opus-5-5` at low effort; set `AI_MODEL` to change it, or `AI_DRAFTS` to `off` to pause drafting. Each draft is one short API call, billed to your Anthropic account.
+**AI drafts:** store `ANTHROPIC_API_KEY`, set `AI_DRAFTS` to `on`, edit `src/ai/reply-voice.txt`, and add only appropriate context to **Client notes for AI drafts**. Read [SECURITY.md](../SECURITY.md) for exactly what goes to Anthropic. Each click incurs your provider's usage charges. No AI service is needed for normal support work.
 
-## 6. Turn on the agent API (optional)
+**Agent API:** generate a random token, for example `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`, and store it as `AGENT_TOKEN`. Keep it in your agent's secret environment, never a skill or mapping file. This grants full access to the desk. Read [AGENTS.md](AGENTS.md) before enabling it.
 
-A random token of 32 or more characters:
+## Acceptance before inviting clients
 
-```bash
-npx wrangler secret put AGENT_TOKEN
-```
+Use a test client you control and a small, harmless test attachment:
 
-The API itself is in [AUTO-FIX-GUIDE.md](AUTO-FIX-GUIDE.md).
+1. Confirm the exact Workers Builds commit and HTTPS domain.
+2. Receive and consume an admin link; confirm a reused link fails.
+3. Add your test client and sign in separately. Submit a request with a file.
+4. Confirm the client receipt and owner notice arrive. Read the file from each authorized view.
+5. Save a private note and a reply draft. Confirm neither appears in the client view.
+6. Send the reply and resolve. Confirm the client sees it and receives a notification; verify the delivery webhook changes the status.
+7. Reopen from client feedback. Disable the test client and confirm its session loses access.
+8. Check both themes on desktop and phone. Configure backups and your privacy/retention notice.
 
-## 7. Deploy
-
-Workers Builds from your fork's `main`: build command `npm run build`, deploy command `npx wrangler deploy`.
-
-## 8. Clients
-
-Clients sign in with the email you add under **Clients**. Adding one sends nothing. With two or more active websites on a client, the request form asks which one.
-
-## Optional: Turnstile
-
-Create a Turnstile widget in Cloudflare for your desk domain, put the site key in `TURNSTILE_SITE_KEY`, and store the secret:
-
-```bash
-npx wrangler secret put TURNSTILE_SECRET
-```
-
-## Changing the database later
-
-New numbered files in `migrations/`; `0001_init.sql` stays as shipped once it's deployed. D1 migrations never run on deploy, so apply them (`npx wrangler d1 migrations apply DB --remote`) before releasing code that depends on them.
+Adding a client sends no invitation. Share your desk URL only after this check.

@@ -14,7 +14,11 @@ export async function sendEmail(env, payload) {
   const config = appConfig(env);
   const { idempotencyKey, ...message } = payload;
   if (!env.RESEND_API_KEY) {
-    console.log('[email not sent: RESEND_API_KEY is not set]', JSON.stringify({ to: message.to, subject: message.subject, text: message.text }));
+    if (import.meta.env?.DEV)
+      console.log(
+        '[local email preview]',
+        JSON.stringify({ to: message.to, subject: message.subject, text: message.text }),
+      );
     return { ok: false, status: 503, detail: 'Email is not configured. Set RESEND_API_KEY.' };
   }
   let response;
@@ -34,21 +38,35 @@ export async function sendEmail(env, payload) {
   }
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
-    console.error('Resend error', response.status, detail);
-    return { ok: false, status: response.status, detail: detail.slice(0, 500) || 'The email service rejected the message.' };
+    console.error('Resend request failed', response.status);
+    return {
+      ok: false,
+      status: response.status,
+      detail: detail.slice(0, 500) || 'The email service rejected the message.',
+    };
   }
   const data = await response.json().catch(() => null);
-  if (!data?.id) return { ok: false, status: 502, detail: 'The email service did not return a delivery receipt.' };
+  if (!data?.id)
+    return { ok: false, status: 502, detail: 'The email service did not return a delivery receipt.' };
   return { ok: true, providerMessageId: data.id };
 }
 
-const firstName = (person) => String(person?.name || '').trim().split(/\s+/)[0] || 'there';
+const firstName = (person) =>
+  String(person?.name || '')
+    .trim()
+    .split(/\s+/)[0] || 'there';
 const who = (client) => client.name || client.company || client.email;
 
 function toClient(env, { client, subject, heading, body, actionLabel, actionUrl, files = [] }) {
   const config = appConfig(env);
   const { html, text } = renderNotificationEmail({
-    businessName: config.businessName, firstName: firstName(client), heading, body, actionLabel, actionUrl, files,
+    businessName: config.businessName,
+    firstName: firstName(client),
+    heading,
+    body,
+    actionLabel,
+    actionUrl,
+    files,
   });
   return { to: client.email, ...(config.noReply ? { reply_to: config.noReply } : {}), subject, html, text };
 }
@@ -80,7 +98,12 @@ const TYPE_LABEL = { change: 'change request', question: 'question', urgent: 'UR
 /** The desk titles a request with its opening words. When the title is that
     excerpt, the owner's notice leaves it out and shows the whole message once. */
 export function titleRepeatsBody(title, body) {
-  const clean = (value) => String(value || '').replace(/^(Question|Urgent):\s*/, '').replace(/…$/, '').replace(/\s+/g, ' ').trim();
+  const clean = (value) =>
+    String(value || '')
+      .replace(/^(Question|Urgent):\s*/, '')
+      .replace(/…$/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   const head = clean(title);
   return !head || clean(body).startsWith(head);
 }
@@ -98,14 +121,19 @@ export function newTicketEmailToOwner(env, { ticket, client, site, adminUrl, lin
       '',
       ticket.body,
       ...(links.length ? ['', 'Links:', ...links] : []),
-      ...(attachments.length ? ['', 'Files on the desk:', ...attachments.map((file) => `- ${file.filename}`)] : []),
+      ...(attachments.length
+        ? ['', 'Files on the desk:', ...attachments.map((file) => `- ${file.filename}`)]
+        : []),
       '',
       `Open and reply: ${adminUrl}`,
     ],
   });
 }
 
-export function clientReplyEmailToOwner(env, { ticket, client, message, adminUrl, links = [], attachments = [] }) {
+export function clientReplyEmailToOwner(
+  env,
+  { ticket, client, message, adminUrl, links = [], attachments = [] },
+) {
   return toOwner(env, {
     subject: `Reply to ${ticket.ref} from ${who(client)}`,
     lines: [
@@ -113,7 +141,9 @@ export function clientReplyEmailToOwner(env, { ticket, client, message, adminUrl
       '',
       message,
       ...(links.length ? ['', 'Links:', ...links] : []),
-      ...(attachments.length ? ['', 'Files on the desk:', ...attachments.map((file) => `- ${file.filename}`)] : []),
+      ...(attachments.length
+        ? ['', 'Files on the desk:', ...attachments.map((file) => `- ${file.filename}`)]
+        : []),
       '',
       `Open and reply: ${adminUrl}`,
     ],
@@ -137,12 +167,21 @@ export function feedbackFlagEmailToOwner(env, { ticket, client, note, adminUrl }
     the client submits; only the page can say "here". */
 export function requestReceivedCopy(type, ownerName, { onPage = false } = {}) {
   if (type === 'urgent') {
-    return { heading: 'We received your urgent request.', body: `It's at the top of ${ownerName}'s queue. We'll email you as soon as we have an update.` };
+    return {
+      heading: 'We received your urgent request.',
+      body: `It's at the top of ${ownerName}'s queue. We'll email you as soon as we have an update.`,
+    };
   }
   if (type === 'question') {
-    return { heading: 'We received your question.', body: `${ownerName} will answer it ${onPage ? 'here' : 'on the desk'}, and we'll email you when the answer is ready.` };
+    return {
+      heading: 'We received your question.',
+      body: `${ownerName} will answer it ${onPage ? 'here' : 'on the desk'}, and we'll email you when the answer is ready.`,
+    };
   }
-  return { heading: 'We received your request.', body: `${ownerName} is on it. We'll email you when it's done, or sooner if we have an update.` };
+  return {
+    heading: 'We received your request.',
+    body: `${ownerName} is on it. We'll email you when it's done, or sooner if we have an update.`,
+  };
 }
 
 export function requestReceivedEmailToClient(env, { ticket, client, url }) {
@@ -166,10 +205,15 @@ export function replyEmailToClient(env, { ticket, client, url, attachments = [],
   return toClient(env, {
     client,
     subject: waiting ? `${config.ownerName} needs your reply` : `${config.ownerName} replied to your request`,
-    heading: waiting ? `${config.ownerName} needs your reply.` : `${config.ownerName} replied to your request.`,
+    heading: waiting
+      ? `${config.ownerName} needs your reply.`
+      : `${config.ownerName} replied to your request.`,
     body: `Open ${ticket.ref} to read the message and reply there.`,
     actionLabel: 'Read and reply',
     actionUrl: action.toString(),
-    files: attachments.map((file) => ({ name: file.filename || 'File', url: new URL(`/files/${file.id}`, url).toString() })),
+    files: attachments.map((file) => ({
+      name: file.filename || 'File',
+      url: new URL(`/files/${file.id}`, url).toString(),
+    })),
   });
 }
